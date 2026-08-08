@@ -2,11 +2,10 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { map } from 'rxjs';
-import { AuthService, ERROR_CODES, UiAuthShellComponent, UiAuthShellTone } from '@tarun1515/jp-shared';
-import {
-  UiRollComponent,
-  VERIFICATION_STAGES,
-} from '@tarun1515/jp-shared';
+import { UiAuthShellComponent, UiAuthShellTone } from 'jp-shared/ui';
+import { AuthService } from 'jp-shared/core';
+import { ERROR_CODES } from 'jp-shared/models';
+import { UiRollComponent, VERIFICATION_STAGES } from 'jp-shared/ui';
 
 /** One step in the "what happens next" list. */
 interface NextStep {

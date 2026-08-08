@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { APPLICATION_STAGES, UiRollComponent } from '@tarun1515/jp-shared';
+import { APPLICATION_STAGES, UiRollComponent } from 'jp-shared/ui';
 import { Applicant, SAMPLE_APPLICANTS } from './applicant.data';
 
 const PAGE_SIZE = 15;

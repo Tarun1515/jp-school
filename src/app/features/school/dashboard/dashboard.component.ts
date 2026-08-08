@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { APPLICATION_STAGES, UiRollComponent } from '@tarun1515/jp-shared';
+import { APPLICATION_STAGES, UiRollComponent } from 'jp-shared/ui';
 import { SAMPLE_APPLICANTS } from '../applicants/applicant.data';
 
 /**

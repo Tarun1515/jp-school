@@ -1,12 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject, isDevMode } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import {
-  AppAccessService,
-  ConfirmDialogComponent,
-  LoaderComponent,
-  ToastContainerComponent,
-  logSharedVersion,
-} from '@tarun1515/jp-shared';
+import { ConfirmDialogComponent, LoaderComponent, ToastContainerComponent } from 'jp-shared/ui';
+import { AppAccessService } from 'jp-shared/core';
 
 @Component({
   selector: 'app-root',
@@ -27,14 +22,5 @@ export class AppComponent {
     */
     this.access.enforce();
 
-    /*
-      Which copy of @tarun1515/jp-shared is this app actually running?
-
-      Four projects means four node_modules and four independent copies of the
-      library. This line is one third of the drift mitigation — the others are
-      the version constant in jp-shared and `npm run check-shared-versions` at
-      the repo root. Dev mode only: a developer's tool, not something users see.
-    */
-    logSharedVersion('jp-school', isDevMode());
   }
 }
