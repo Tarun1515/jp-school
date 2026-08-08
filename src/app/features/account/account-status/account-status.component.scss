@@ -1,0 +1,68 @@
+@use 'variables' as v;
+@use 'mixins' as m;
+
+// The verification roll, and the "what happens next" list beneath it.
+// Both are register conventions: a marked track, then ruled entries.
+
+.status__roll {
+  padding-bottom: v.$space-5;
+  border-bottom: var(--jp-rule-width) solid var(--jp-rule);
+}
+
+.status__roll-head {
+  @include m.flex-between(baseline, v.$space-3);
+
+  margin-bottom: v.$space-3;
+}
+
+.status__next {
+  padding-top: v.$space-5;
+}
+
+// Ruled entries with the register's margin rule. The state colour is
+// reinforcement — every step also says where it is in words.
+.steps {
+  list-style: none;
+  margin: v.$space-3 0 0;
+  padding: 0;
+}
+
+.steps__item {
+  @include m.margin-rule(var(--jp-rule));
+
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: v.$space-3 0 v.$space-3 var(--jp-margin-gutter);
+  border-bottom: var(--jp-rule-width) solid var(--jp-rule);
+
+  &:last-child { border-bottom: 0; }
+
+  &--now::before { background: var(--jp-warning); }
+  &--done::before { background: var(--jp-success); }
+}
+
+.steps__title {
+  font-weight: var(--jp-font-weight-semibold);
+  font-size: var(--jp-font-size-base);
+
+  .steps__item--todo & { color: var(--jp-text-muted); }
+}
+
+.steps__detail {
+  font-size: var(--jp-font-size-sm);
+  color: var(--jp-text-muted);
+  line-height: var(--jp-line-height-snug);
+}
+
+.status__aside {
+  margin: v.$space-4 0 0;
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-muted);
+}
+
+.status__actions {
+  margin-top: v.$space-6;
+  padding-top: v.$space-4;
+  border-top: var(--jp-rule-width) solid var(--jp-rule);
+}

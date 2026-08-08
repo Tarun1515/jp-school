@@ -1,0 +1,57 @@
+<ui-auth-shell
+  [title]="content().title"
+  [subtitle]="content().body"
+  [tone]="content().tone"
+  [wide]="true"
+>
+  <!--
+    The roll again, three stages instead of seven. Same component, same
+    vocabulary — so someone who has learned to read it on their applicants list
+    already knows what this is saying.
+  -->
+  <div class="status__roll">
+    <div class="status__roll-head">
+      <span class="text-rule-label">Verification</span>
+      <span class="badge badge--{{ content().badgeTone }}">{{ content().label }}</span>
+    </div>
+
+    <ui-roll
+      [stages]="stages"
+      [current]="content().stage"
+      [tone]="content().rollTone"
+      size="lg"
+    />
+  </div>
+
+  <section class="status__next">
+    <h2 class="text-rule-label">What happens next</h2>
+
+    <ol class="steps">
+      @for (step of content().steps; track step.title) {
+        <li class="steps__item" [class]="'steps__item--' + step.state">
+          <span class="steps__title">{{ step.title }}</span>
+          <span class="steps__detail">{{ step.detail }}</span>
+        </li>
+      }
+    </ol>
+  </section>
+
+  @if (content().aside; as note) {
+    <p class="status__aside">{{ note }}</p>
+  }
+
+  <div class="btn-group btn-group--between status__actions">
+    <button type="button" class="btn btn--ghost" (click)="signOut()">Sign out</button>
+
+    @if (content().primaryAction; as action) {
+      <button type="button" class="btn btn--primary" (click)="go(action.route)">
+        {{ action.label }}
+      </button>
+    }
+  </div>
+
+  <div authAside>
+    Questions about verification? Write to
+    <a href="mailto:verify@staffroom.in">verify&#64;staffroom.in</a>
+  </div>
+</ui-auth-shell>

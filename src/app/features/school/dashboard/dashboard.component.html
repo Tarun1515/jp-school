@@ -1,0 +1,167 @@
+<div class="page enter">
+  <header class="page__header">
+    <div class="page__heading">
+      <h1 class="page__title">Greenwood Public School</h1>
+      <!-- Counts derive from the same source as the panels below, so the
+           header cannot claim three jobs while the list shows eight. -->
+      <p class="page__description">
+        {{ jobs().length }} jobs open. {{ needsReply() }} applications have been
+        waiting on you for more than a week.
+      </p>
+    </div>
+
+    <div class="page__actions">
+      <a class="btn" routerLink="/school/teacher-search">Find teachers</a>
+      <button type="button" class="btn btn--primary">Post a job</button>
+    </div>
+  </header>
+
+  <div class="stat-grid" style="--jp-enter-index: 1">
+    <!--
+      The first tile is the only one with a margin rule, because it is the only
+      one that is a call to action. Making every tile shout is the same as
+      making none of them shout.
+    -->
+    <a class="stat stat--link card--marked" routerLink="/school/applicants"
+       style="--jp-card-rule: var(--jp-danger)">
+      <span class="stat__label">Needs your reply</span>
+      <span class="stat__value">{{ needsReply() }}</span>
+      <span class="stat__meta">Waiting more than 7 days</span>
+    </a>
+
+    <div class="stat">
+      <span class="stat__label">Applicants</span>
+      <span class="stat__value">{{ totalApplicants }}</span>
+      <span class="stat__meta">Across {{ jobs().length }} open jobs</span>
+    </div>
+
+    <div class="stat">
+      <span class="stat__label">At interview</span>
+      <span class="stat__value">{{ interviews() }}</span>
+      <span class="stat__meta">Scheduled this week</span>
+    </div>
+
+    <div class="stat">
+      <span class="stat__label">Hired</span>
+      <span class="stat__value">{{ hired() }}</span>
+      <span class="stat__meta">This academic year</span>
+    </div>
+  </div>
+
+  <div class="dash-grid" style="--jp-enter-index: 2">
+    <!--
+      The funnel. The roll at rest: same seven stages, counted across every
+      application rather than tracked for one. The wall is visible without
+      reading a number.
+    -->
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <h2 class="card__title">Where everyone is</h2>
+          <p class="card__subtitle">Open applications by stage</p>
+        </div>
+      </div>
+
+      <div class="card__body">
+        <ol class="funnel">
+          @for (entry of funnel(); track entry.label) {
+            <li class="funnel__row">
+              <span class="funnel__label">{{ entry.label }}</span>
+              <span class="funnel__track">
+                <span
+                  class="funnel__bar"
+                  [style.width.%]="(entry.count / funnelPeak()) * 100"
+                ></span>
+              </span>
+              <span class="funnel__count">{{ entry.count }}</span>
+            </li>
+          }
+        </ol>
+      </div>
+
+      <!--
+        The funnel counts OPEN applications only, so its numbers do not add up
+        to the 50 in the stat tile above. Saying where the difference went is
+        the honest way to close the panel — and it happens to be the line that
+        stops the card ending in whitespace.
+      -->
+      <div class="card__footer">
+        <span class="text-helper">{{ openTotal() }} open</span>
+        <span class="text-helper">{{ closedTotal() }} not proceeding</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <h2 class="card__title">Latest applications</h2>
+          <p class="card__subtitle">Newest first</p>
+        </div>
+
+        <a class="btn btn--sm" routerLink="/school/applicants">See all</a>
+      </div>
+
+      <div class="card__body card__body--flush card__body--fill">
+        <ul class="entries">
+          @for (applicant of recent(); track applicant.applicationId) {
+            <li class="entries__row">
+              <span class="entries__main">
+                <span class="entries__name">{{ applicant.name }}</span>
+                <span class="entries__meta">
+                  <span class="text-mono">{{ applicant.grade }}</span>
+                  · {{ applicant.subject }} ·
+                  {{ applicant.experience }} {{ applicant.experience === 1 ? 'year' : 'years' }}
+                </span>
+              </span>
+
+              <span class="entries__side">
+                <ui-roll [stages]="stages" [current]="applicant.stage" size="xs" />
+                <span class="entries__date text-mono">{{ applicant.appliedOn | date: 'd MMM' }}</span>
+              </span>
+            </li>
+          }
+        </ul>
+      </div>
+    </section>
+  </div>
+
+  <!--
+    Open jobs. The third question, after "what needs me" and "where is
+    everyone": what are we actually hiring for. This is the content that belongs
+    in the lower half of the page — the alternative was stretching two panels to
+    cover the space, which fills a viewport without answering anything.
+  -->
+  <section class="card" style="--jp-enter-index: 3">
+    <div class="card__header">
+      <div>
+        <h2 class="card__title">Open jobs</h2>
+        <p class="card__subtitle">Sorted by what is waiting on you</p>
+      </div>
+
+      <a class="btn btn--sm" routerLink="/school/jobs">Manage jobs</a>
+    </div>
+
+    <div class="card__body card__body--flush">
+      <ul class="entries">
+        @for (job of jobs(); track job.role) {
+          <li class="entries__row" [class.entries__row--attention]="job.needsReply > 0">
+            <span class="entries__main">
+              <span class="entries__name">{{ job.role }}</span>
+              <span class="entries__meta">{{ job.subject }}</span>
+            </span>
+
+            <span class="entries__side">
+              @if (job.needsReply > 0) {
+                <span class="badge badge--danger">{{ job.needsReply }} waiting</span>
+              }
+
+              <span class="entries__count text-mono">
+                {{ job.applicants }} {{ job.applicants === 1 ? 'applicant' : 'applicants' }}
+              </span>
+            </span>
+          </li>
+        }
+      </ul>
+    </div>
+  </section>
+</div>

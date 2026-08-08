@@ -1,0 +1,149 @@
+@use 'variables' as v;
+@use 'mixins' as m;
+
+.dash-grid {
+  display: grid;
+  gap: v.$space-4;
+  grid-template-columns: 1fr;
+
+  @include m.up(lg) {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  }
+}
+
+// A stat tile that navigates. It does not lift on hover — see rule 2 in
+// _variables.scss — it darkens its border, like a card being picked up rather
+// than a card floating.
+.stat--link {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color var(--jp-transition-fast) var(--jp-easing);
+
+  &:hover {
+    border-color: var(--jp-border-strong);
+    text-decoration: none;
+  }
+
+  @include m.focus-ring;
+  @include m.reduced-motion { transition: none; }
+}
+
+// The funnel: the roll at rest. Bars are relative to the busiest stage, so the
+// shape stays legible when 30 of 50 applications sit in one place.
+.funnel {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.funnel__row {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr 2rem;
+  align-items: center;
+  gap: v.$space-3;
+  min-height: 2rem;
+}
+
+.funnel__label {
+  font-size: var(--jp-font-size-sm);
+  color: var(--jp-text-muted);
+}
+
+.funnel__track {
+  height: 0.75rem;
+  background: var(--jp-neutral-100);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.funnel__bar {
+  display: block;
+  height: 100%;
+  background: var(--jp-primary-600);
+  border-radius: 1px;
+  min-width: 2px;
+}
+
+.funnel__count {
+  @include m.tabular;
+
+  font-size: var(--jp-font-size-sm);
+  text-align: right;
+}
+
+// Ruled entries — the same rhythm as a table row, without the columns.
+.card__body--flush { padding: 0; }
+
+.entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.entries__row {
+  @include m.flex-between(center, v.$space-3);
+
+  min-height: v.$rule-row-height;
+  padding: v.$space-2 v.$space-5;
+  border-bottom: var(--jp-rule-width) solid var(--jp-rule);
+
+  &:last-child { border-bottom: 0; }
+}
+
+.entries__main {
+  @include m.flex-column(1px);
+
+  min-width: 0;
+}
+
+.entries__name {
+  font-weight: var(--jp-font-weight-medium);
+
+  @include m.truncate;
+}
+
+.entries__meta {
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-muted);
+
+  @include m.truncate;
+}
+
+.entries__side {
+  display: flex;
+  align-items: center;
+  gap: v.$space-3;
+  flex-shrink: 0;
+}
+
+.entries__date {
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-subtle);
+}
+
+// The two upper panels are equal height, and the taller one decides. Without
+// this the shorter card floats with a ragged bottom edge against its neighbour,
+// which is the kind of small misalignment that reads as sloppiness.
+.dash-grid {
+  align-items: stretch;
+
+  > .card {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.card__body--fill { flex: 1; }
+
+// A job with applications waiting on the school gets the same margin rule as a
+// row in the applicants table — one vocabulary for "this needs you", used
+// everywhere it is true.
+.entries__row--attention {
+  box-shadow: inset var(--jp-margin-rule-width) 0 0 var(--jp-danger);
+}
+
+.entries__count {
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-muted);
+  white-space: nowrap;
+}
