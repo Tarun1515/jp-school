@@ -1,0 +1,515 @@
+<div class="page enter reg">
+  <header class="page__header">
+    <div class="page__heading">
+      <h1 class="page__title">Register your school</h1>
+      <p class="page__description">
+        We check every school before its jobs go live, so teachers know the
+        listings here are real. It takes about ten minutes, and you can stop and
+        come back — everything is saved as you go.
+      </p>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="card"><div class="card__body">
+      <span class="skeleton" style="width: 60%; height: 1rem"></span>
+      <span class="skeleton" style="width: 100%; height: 1rem; margin-top: .75rem"></span>
+      <span class="skeleton" style="width: 40%; height: 1rem; margin-top: .75rem"></span>
+    </div></div>
+  } @else {
+    <!--
+      Progress, not decoration. Somebody five steps into a form needs to know
+      how much is left before they decide whether to keep going.
+    -->
+    <ol class="reg-steps" style="--jp-enter-index: 1">
+      @for (meta of steps; track meta.key; let i = $index) {
+        <li class="reg-steps__item"
+            [class.reg-steps__item--done]="i < stepIndex()"
+            [class.reg-steps__item--current]="i === stepIndex()">
+          <span class="reg-steps__marker" aria-hidden="true">{{ i + 1 }}</span>
+          <span class="reg-steps__label">{{ meta.label }}</span>
+        </li>
+      }
+    </ol>
+
+    <section class="card reg-card" style="--jp-enter-index: 2">
+      <div class="card__header reg-card__header">
+        <div>
+          <h2 class="card__title">{{ steps[stepIndex()].label }}</h2>
+          <p class="card__subtitle">{{ steps[stepIndex()].hint }}</p>
+        </div>
+
+        <!--
+          The save state lives here rather than in a toast: a toast about a
+          background save nobody asked for is noise, and saying nothing at all
+          is worse than either.
+        -->
+        <p class="reg-save" [class]="'reg-save reg-save--' + saveState()">
+          @switch (saveState()) {
+            @case ('saving') { Saving… }
+            @case ('saved') { Saved }
+            @case ('failed') { Not saved — check your connection }
+          }
+        </p>
+      </div>
+
+      <div class="card__body">
+        <!-- ================= 1. BASICS ================= -->
+        @if (step() === 'basics') {
+          <div class="field">
+            <label class="field__label" for="schoolName">School name</label>
+            <input class="form-control" id="schoolName" type="text"
+                   placeholder="As it appears on your registration certificate"
+                   [ngModel]="value('schoolName')"
+                   (ngModelChange)="set('schoolName', $event)" />
+            @if (error('schoolName')) { <p class="field__error">{{ error('schoolName') }}</p> }
+          </div>
+
+          <div class="form-grid">
+            <div class="field">
+              <label class="field__label" for="schoolTypeId">
+                Type <span class="field__optional">optional</span>
+              </label>
+              <select class="form-control" id="schoolTypeId"
+                      [ngModel]="value('schoolTypeId')"
+                      (ngModelChange)="set('schoolTypeId', $event)">
+                <option [ngValue]="null">Choose…</option>
+                @for (item of schoolTypes(); track item.id) {
+                  <option [ngValue]="item.id">{{ item.name }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="boardId">
+                Board <span class="field__optional">optional</span>
+              </label>
+              <select class="form-control" id="boardId"
+                      [ngModel]="value('boardId')"
+                      (ngModelChange)="set('boardId', $event)">
+                <option [ngValue]="null">Choose…</option>
+                @for (item of boards(); track item.id) {
+                  <option [ngValue]="item.id">{{ item.name }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="affiliationNumber">
+                Affiliation number <span class="field__optional">optional</span>
+              </label>
+              <input class="form-control" id="affiliationNumber" type="text"
+                     placeholder="e.g. CBSE/2011/34120"
+                     [ngModel]="value('affiliationNumber')"
+                     (ngModelChange)="set('affiliationNumber', $event)" />
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="registrationNo">
+                Registration number <span class="field__optional">optional</span>
+              </label>
+              <input class="form-control" id="registrationNo" type="text"
+                     [ngModel]="value('registrationNo')"
+                     (ngModelChange)="set('registrationNo', $event)" />
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="panNumber">
+                PAN <span class="field__optional">optional</span>
+              </label>
+              <input class="form-control" id="panNumber" type="text" maxlength="10"
+                     placeholder="ABCDE1234F" style="text-transform: uppercase"
+                     [ngModel]="value('panNumber')"
+                     (ngModelChange)="set('panNumber', $event)" />
+              <p class="field__helper">
+                If you have it to hand. You can add it later — it does not hold
+                up your registration.
+              </p>
+              @if (error('panNumber')) { <p class="field__error">{{ error('panNumber') }}</p> }
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="establishedYear">
+                Established <span class="field__optional">optional</span>
+              </label>
+              <input class="form-control" id="establishedYear" type="number"
+                     placeholder="e.g. 2011"
+                     [ngModel]="value('establishedYear')"
+                     (ngModelChange)="set('establishedYear', $event)" />
+              @if (error('establishedYear')) { <p class="field__error">{{ error('establishedYear') }}</p> }
+            </div>
+          </div>
+
+          <!--
+            One radio, and nothing more. It changes what the dashboard shows
+            after approval, not the data — a school can switch later with no
+            migration, and asking for a campus list here would add a sixth step
+            to a form somebody has not yet decided to finish.
+          -->
+          <fieldset class="field reg-group">
+            <legend class="field__label">How many campuses?</legend>
+
+            <label class="form-check">
+              <input type="radio" name="groupType" [value]="1"
+                     [ngModel]="value('groupType')" (ngModelChange)="set('groupType', 1)" />
+              <span>Just the one</span>
+            </label>
+
+            <label class="form-check">
+              <input type="radio" name="groupType" [value]="2"
+                     [ngModel]="value('groupType')" (ngModelChange)="set('groupType', 2)" />
+              <span>Several campuses</span>
+            </label>
+
+            <p class="field__helper">
+              You add the other campuses from your dashboard once you are
+              verified. Registration covers the school as a whole.
+            </p>
+          </fieldset>
+
+          <div class="field">
+            <label class="field__label" for="aboutSchool">
+              About the school <span class="field__optional">optional</span>
+            </label>
+            <textarea class="form-control" id="aboutSchool" rows="3"
+                      placeholder="A line or two teachers will read on your job posts."
+                      [ngModel]="value('aboutSchool')"
+                      (ngModelChange)="set('aboutSchool', $event)"></textarea>
+          </div>
+        }
+
+        <!-- ================= 2. ADDRESS ================= -->
+        @if (step() === 'address') {
+          <div class="field">
+            <label class="field__label" for="addressLine1">Address</label>
+            <input class="form-control" id="addressLine1" type="text"
+                   placeholder="Street and number"
+                   [ngModel]="value('addressLine1')"
+                   (ngModelChange)="set('addressLine1', $event)" />
+            @if (error('addressLine1')) { <p class="field__error">{{ error('addressLine1') }}</p> }
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="addressLine2">
+              Area or locality <span class="field__optional">optional</span>
+            </label>
+            <input class="form-control" id="addressLine2" type="text"
+                   [ngModel]="value('addressLine2')"
+                   (ngModelChange)="set('addressLine2', $event)" />
+          </div>
+
+          <div class="form-grid">
+            <div class="field">
+              <label class="field__label" for="stateId">State</label>
+              <select class="form-control" id="stateId"
+                      [ngModel]="value('stateId')"
+                      (ngModelChange)="onStateChange($event)">
+                <option [ngValue]="null">Choose…</option>
+                @for (item of states(); track item.id) {
+                  <option [ngValue]="item.id">{{ item.name }}</option>
+                }
+              </select>
+              @if (error('stateId')) { <p class="field__error">{{ error('stateId') }}</p> }
+            </div>
+
+            <!--
+              🔴 HIDDEN, not disabled-and-empty.
+
+              The district and city dataset has not been imported (2.47). An
+              empty dropdown reads as "this form is broken" and is the single
+              most likely thing to stop a real registration on day one; a
+              disabled one is something people keep clicking at.
+
+              So the control is absent and one line says why.
+            -->
+            @if (hasDistricts()) {
+              <div class="field">
+                <label class="field__label" for="districtId">
+                  District <span class="field__optional">optional</span>
+                </label>
+                <select class="form-control" id="districtId"
+                        [ngModel]="value('districtId')"
+                        (ngModelChange)="onDistrictChange($event)">
+                  <option [ngValue]="null">Choose…</option>
+                  @for (item of districts(); track item.id) {
+                    <option [ngValue]="item.id">{{ item.name }}</option>
+                  }
+                </select>
+              </div>
+            }
+
+            @if (hasCities()) {
+              <div class="field">
+                <label class="field__label" for="cityId">
+                  City <span class="field__optional">optional</span>
+                </label>
+                <select class="form-control" id="cityId"
+                        [ngModel]="value('cityId')"
+                        (ngModelChange)="set('cityId', $event)">
+                  <option [ngValue]="null">Choose…</option>
+                  @for (item of cities(); track item.id) {
+                    <option [ngValue]="item.id">{{ item.name }}</option>
+                  }
+                </select>
+              </div>
+            }
+
+            <div class="field">
+              <label class="field__label" for="pincode">
+                PIN code <span class="field__optional">optional</span>
+              </label>
+              <input class="form-control" id="pincode" type="text" maxlength="6"
+                     inputmode="numeric" placeholder="110024"
+                     [ngModel]="value('pincode')"
+                     (ngModelChange)="set('pincode', $event)" />
+              @if (error('pincode')) { <p class="field__error">{{ error('pincode') }}</p> }
+            </div>
+          </div>
+
+          @if (!hasDistricts()) {
+            <p class="reg-note">
+              We are still building the district and city lists for India. Your
+              state and PIN code are enough for now — we will fill in the rest
+              for you, and you will be able to edit it later.
+            </p>
+          }
+        }
+
+        <!-- ================= 3. CONTACT ================= -->
+        @if (step() === 'contact') {
+          <div class="form-grid">
+            <div class="field">
+              <label class="field__label" for="contactEmail">Email</label>
+              <input class="form-control" id="contactEmail" type="email"
+                     placeholder="office@yourschool.edu.in"
+                     [ngModel]="value('contactEmail')"
+                     (ngModelChange)="set('contactEmail', $event)" />
+              <p class="field__helper">Where we send verification updates.</p>
+              @if (error('contactEmail')) { <p class="field__error">{{ error('contactEmail') }}</p> }
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="contactMobile">Phone</label>
+              <input class="form-control" id="contactMobile" type="tel" maxlength="10"
+                     inputmode="numeric" placeholder="10-digit mobile"
+                     [ngModel]="value('contactMobile')"
+                     (ngModelChange)="set('contactMobile', $event)" />
+              <p class="field__helper">If something is unclear, we ring this rather than guess.</p>
+              @if (error('contactMobile')) { <p class="field__error">{{ error('contactMobile') }}</p> }
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="principalName">
+                Principal <span class="field__optional">optional</span>
+              </label>
+              <input class="form-control" id="principalName" type="text"
+                     [ngModel]="value('principalName')"
+                     (ngModelChange)="set('principalName', $event)" />
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="principalMobile">
+                Principal's phone <span class="field__optional">optional</span>
+              </label>
+              <input class="form-control" id="principalMobile" type="tel" maxlength="10"
+                     inputmode="numeric"
+                     [ngModel]="value('principalMobile')"
+                     (ngModelChange)="set('principalMobile', $event)" />
+              @if (error('principalMobile')) { <p class="field__error">{{ error('principalMobile') }}</p> }
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="hrContactName">
+                Who handles hiring <span class="field__optional">optional</span>
+              </label>
+              <input class="form-control" id="hrContactName" type="text"
+                     [ngModel]="value('hrContactName')"
+                     (ngModelChange)="set('hrContactName', $event)" />
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="hrContactMobile">
+                Their phone <span class="field__optional">optional</span>
+              </label>
+              <input class="form-control" id="hrContactMobile" type="tel" maxlength="10"
+                     inputmode="numeric"
+                     [ngModel]="value('hrContactMobile')"
+                     (ngModelChange)="set('hrContactMobile', $event)" />
+              @if (error('hrContactMobile')) { <p class="field__error">{{ error('hrContactMobile') }}</p> }
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="website">
+                Website <span class="field__optional">optional</span>
+              </label>
+              <input class="form-control" id="website" type="url"
+                     placeholder="https://"
+                     [ngModel]="value('website')"
+                     (ngModelChange)="set('website', $event)" />
+            </div>
+          </div>
+        }
+
+        <!-- ================= 4. DOCUMENTS ================= -->
+        @if (step() === 'documents') {
+          <p class="reg-lead">
+            These are what our team reads. A clear photo from a phone is fine —
+            it only has to be legible.
+          </p>
+
+          @if (!requestId()) {
+            <p class="reg-note">
+              Go back and enter the school name first. Uploads need something to
+              attach to.
+            </p>
+          } @else {
+            <ul class="uploads">
+              @for (slot of slots(); track slot.id) {
+                <li class="uploads__item">
+                  <div class="uploads__what">
+                    <span class="uploads__name">
+                      {{ slot.name }}
+                      @if (slot.isMandatory) {
+                        <span class="uploads__required">required</span>
+                      }
+                    </span>
+                    <span class="uploads__rules">
+                      {{ slot.allowedExtensions.split(',').join(', ') }} ·
+                      up to {{ (slot.maxSizeKb / 1024).toFixed(0) }} MB
+                    </span>
+                  </div>
+
+                  <div class="uploads__state">
+                    @if (documentFor(slot.id); as doc) {
+                      <span class="badge badge--success badge--sm">Uploaded</span>
+                      <span class="uploads__file">{{ doc.fileName }}</span>
+                    }
+
+                    <label class="btn btn--sm uploads__button"
+                           [class.btn--primary]="!documentFor(slot.id)">
+                      {{ uploading() === slot.id
+                          ? 'Uploading…'
+                          : (documentFor(slot.id) ? 'Replace' : 'Choose a file') }}
+                      <input type="file" class="visually-hidden"
+                             [disabled]="uploading() !== null"
+                             (change)="onFile($event, slot)" />
+                    </label>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+        }
+
+        <!-- ================= 5. REVIEW ================= -->
+        @if (step() === 'review') {
+          <p class="reg-lead">
+            Have a read before it goes. You can change anything from here.
+          </p>
+
+          <section class="review">
+            <div class="review__head">
+              <h3 class="review__title">The school</h3>
+              <button type="button" class="btn btn--link btn--sm" (click)="goToStep('basics')">Edit</button>
+            </div>
+            <dl class="facts">
+              <div class="facts__item"><dt>Name</dt><dd>{{ value('schoolName') || '—' }}</dd></div>
+              <div class="facts__item"><dt>Type</dt><dd>{{ lookupName(schoolTypes(), value('schoolTypeId')) }}</dd></div>
+              <div class="facts__item"><dt>Board</dt><dd>{{ lookupName(boards(), value('boardId')) }}</dd></div>
+              <div class="facts__item"><dt>Affiliation no.</dt><dd>{{ value('affiliationNumber') || '—' }}</dd></div>
+              <div class="facts__item"><dt>Registration no.</dt><dd>{{ value('registrationNo') || '—' }}</dd></div>
+              <div class="facts__item"><dt>PAN</dt><dd>{{ value('panNumber') || '—' }}</dd></div>
+              <div class="facts__item"><dt>Established</dt><dd>{{ value('establishedYear') || '—' }}</dd></div>
+              <div class="facts__item"><dt>Campuses</dt><dd>{{ value('groupType') === 2 ? 'Several' : 'Just the one' }}</dd></div>
+            </dl>
+          </section>
+
+          <section class="review">
+            <div class="review__head">
+              <h3 class="review__title">Where it is</h3>
+              <button type="button" class="btn btn--link btn--sm" (click)="goToStep('address')">Edit</button>
+            </div>
+            <dl class="facts">
+              <div class="facts__item facts__item--wide">
+                <dt>Address</dt>
+                <dd>
+                  {{ value('addressLine1') || '—' }}@if (value('addressLine2')) {, {{ value('addressLine2') }}}
+                  @if (value('pincode')) { — {{ value('pincode') }} }
+                </dd>
+              </div>
+              <div class="facts__item"><dt>State</dt><dd>{{ lookupName(states(), value('stateId')) }}</dd></div>
+            </dl>
+          </section>
+
+          <section class="review">
+            <div class="review__head">
+              <h3 class="review__title">Who to reach</h3>
+              <button type="button" class="btn btn--link btn--sm" (click)="goToStep('contact')">Edit</button>
+            </div>
+            <dl class="facts">
+              <div class="facts__item"><dt>Email</dt><dd>{{ value('contactEmail') || '—' }}</dd></div>
+              <div class="facts__item"><dt>Phone</dt><dd>{{ value('contactMobile') || '—' }}</dd></div>
+              <div class="facts__item"><dt>Principal</dt><dd>{{ value('principalName') || '—' }}</dd></div>
+              <div class="facts__item"><dt>Hiring contact</dt><dd>{{ value('hrContactName') || '—' }}</dd></div>
+            </dl>
+          </section>
+
+          <section class="review">
+            <div class="review__head">
+              <h3 class="review__title">Documents</h3>
+              <button type="button" class="btn btn--link btn--sm" (click)="goToStep('documents')">Edit</button>
+            </div>
+
+            <ul class="review__docs">
+              @for (slot of slots(); track slot.id) {
+                <li class="review__doc">
+                  <span>{{ slot.name }}</span>
+                  @if (documentFor(slot.id); as doc) {
+                    <span class="review__doc-file">{{ doc.fileName }}</span>
+                  } @else if (slot.isMandatory) {
+                    <span class="review__doc-missing">still needed</span>
+                  } @else {
+                    <span class="review__doc-file">—</span>
+                  }
+                </li>
+              }
+            </ul>
+          </section>
+
+          @if (missingMandatory().length > 0) {
+            <p class="reg-note reg-note--stop">
+              {{ missingMandatory().length === 1 ? 'One required document is' : missingMandatory().length + ' required documents are' }}
+              still missing. Add
+              {{ missingMandatory().length === 1 ? 'it' : 'them' }}
+              and you can send this straight away.
+            </p>
+          } @else {
+            <p class="reg-note">
+              Once you send this, our team reads it — usually within two working
+              days. We email you either way, and the status page tells you where
+              it has got to.
+            </p>
+          }
+        }
+      </div>
+
+      <div class="card__footer reg-actions">
+        @if (stepIndex() > 0) {
+          <button type="button" class="btn" (click)="back()">Back</button>
+        }
+
+        <span class="reg-actions__spacer"></span>
+
+        @if (step() !== 'review') {
+          <button type="button" class="btn btn--primary" (click)="next()">Continue</button>
+        } @else {
+          <button type="button" class="btn btn--primary"
+                  [disabled]="!canSubmit()"
+                  (click)="submit()">
+            {{ submitting() ? 'Sending…' : 'Send for verification' }}
+          </button>
+        }
+      </div>
+    </section>
+  }
+</div>

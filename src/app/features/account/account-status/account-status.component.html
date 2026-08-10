@@ -4,6 +4,18 @@
   [tone]="content().tone"
   [wide]="true"
 >
+  @if (justSubmitted(); as requestNo) {
+    <!--
+      Shown once, straight after submitting. The number is here because it is
+      the thing somebody quotes when they ring up, and because seeing it makes
+      the submission feel like it landed somewhere real.
+    -->
+    <p class="status__receipt">
+      Sent. Your reference is <strong>{{ requestNo }}</strong> — worth keeping if
+      you need to ask us about it.
+    </p>
+  }
+
   <!--
     The roll again, three stages instead of seven. Same component, same
     vocabulary — so someone who has learned to read it on their applicants list
@@ -22,6 +34,76 @@
       size="lg"
     />
   </div>
+
+  @if (request(); as req) {
+    <p class="status__ref">
+      {{ req.header.requestNo }} · sent {{ req.header.submittedOn | date: 'd MMM y' }}
+    </p>
+  }
+
+  <!--
+    🔴 THE PROMISE THE PHASE 1D COPY MADE.
+
+    "If we do, this page will name exactly which one and why." Not "a document
+    was rejected" — which one, and in the reviewer's own words, so the school
+    can fix it in one go rather than guessing and being sent back twice.
+  -->
+  @if (rejectedDocuments().length > 0) {
+    <section class="status__returned">
+      <h2 class="text-rule-label">
+        {{ rejectedDocuments().length === 1 ? 'The document we need again' : 'The documents we need again' }}
+      </h2>
+
+      <ul class="returned">
+        @for (doc of rejectedDocuments(); track doc.documentId) {
+          <li class="returned__item">
+            <p class="returned__name">{{ doc.documentTypeName }}</p>
+
+            @if (doc.rejectionReasonName) {
+              <p class="returned__reason">{{ doc.rejectionReasonName }}</p>
+            }
+
+            <!-- The reviewer's own note. The instruction, in their words. -->
+            @if (doc.remarks) {
+              <p class="returned__remarks">{{ doc.remarks }}</p>
+            }
+
+            <p class="returned__file">You sent: {{ doc.fileName }}</p>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (needsResubmit() && lastDecision(); as decision) {
+    @if (decision.remarks && rejectedDocuments().length === 0) {
+      <section class="status__returned">
+        <h2 class="text-rule-label">What we need</h2>
+        <p class="returned__remarks">{{ decision.remarks }}</p>
+      </section>
+    }
+  }
+
+  <!--
+    🔴 REJECTED IS FINAL. No resubmit button anywhere near it.
+
+    A button that looks like it might help, on a decision that cannot be
+    reversed from here, wastes the one thing this person has left — their
+    willingness to try once more. Say what actually happens next instead.
+  -->
+  @if (isRejected() && lastDecision(); as decision) {
+    <section class="status__returned status__returned--final">
+      <h2 class="text-rule-label">Why</h2>
+
+      @if (decision.rejectionReasonName) {
+        <p class="returned__reason">{{ decision.rejectionReasonName }}</p>
+      }
+
+      @if (decision.remarks) {
+        <p class="returned__remarks">{{ decision.remarks }}</p>
+      }
+    </section>
+  }
 
   <section class="status__next">
     <h2 class="text-rule-label">What happens next</h2>
@@ -43,7 +125,27 @@
   <div class="btn-group btn-group--between status__actions">
     <button type="button" class="btn btn--ghost" (click)="signOut()">Sign out</button>
 
-    @if (content().primaryAction; as action) {
+    @if (hasNoRequest()) {
+      <!-- Signed in, nothing registered. The one thing to do is obvious. -->
+      <button type="button" class="btn btn--primary" (click)="go('/account/register')">
+        Register your school
+      </button>
+    } @else if (isDraft()) {
+      <button type="button" class="btn btn--primary" (click)="go('/account/register')">
+        Finish your registration
+      </button>
+    } @else if (needsResubmit()) {
+      <div class="status__resubmit">
+        <button type="button" class="btn" (click)="go('/account/register')">
+          Replace the document
+        </button>
+        <button type="button" class="btn btn--primary"
+                [disabled]="resubmitting()"
+                (click)="resubmit()">
+          {{ resubmitting() ? 'Sending…' : 'Ask us to look again' }}
+        </button>
+      </div>
+    } @else if (content().primaryAction; as action) {
       <button type="button" class="btn btn--primary" (click)="go(action.route)">
         {{ action.label }}
       </button>
@@ -53,5 +155,30 @@
   <div authAside>
     Questions about verification? Write to
     <a href="mailto:verify@staffroom.in">verify&#64;staffroom.in</a>
+  </div>
+
+  <!--
+    The board's right-hand column, which this page left empty until Phase 2F.
+
+    The shell has always had the slot; the login and register pages fill it and
+    this one did not, so at 1440 nearly half the screen was blank dark beside a
+    page about waiting. Now it answers the question somebody in that position is
+    actually asking — why is anyone checking, and what is it worth to me.
+
+    aria-hidden inside the shell, so this is reassurance rather than
+    information: nothing here is said only here.
+  -->
+  <div authPanel>
+    <p class="auth__panel-eyebrow">Why we check</p>
+
+    <p class="auth__panel-lede">
+      Teachers apply here because a person has verified every school on the
+      platform.
+    </p>
+
+    <p class="auth__panel-note">
+      That is the whole reason a good candidate answers your job rather than
+      scrolling past it — and it is the same check for everyone, once.
+    </p>
   </div>
 </ui-auth-shell>

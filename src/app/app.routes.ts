@@ -94,6 +94,21 @@ export const routes: Routes = [
           ),
       },
       {
+        /*
+          Registration itself lives under /account, not /auth, and reachable
+          while pending on purpose: a school signs up, lands here, and comes
+          back to the same URL to finish a draft or replace a document that was
+          sent back. Putting it behind the app shell would need an approved
+          account to reach the form that gets you approved.
+        */
+        path: 'register',
+        loadComponent: () =>
+          import('./features/account/registration/registration.component').then(
+            (m) => m.RegistrationComponent,
+          ),
+        data: { title: 'Register your school' },
+      },
+      {
         // Reachable while pending on purpose — this is how a school fixes a
         // rejected document without being able to reach anything else.
         path: 'documents',

@@ -1,11 +1,20 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { DatePipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { map } from 'rxjs';
 import { UiAuthShellComponent, UiAuthShellTone } from 'jp-shared/ui';
 import { AuthService } from 'jp-shared/core';
-import { ERROR_CODES } from 'jp-shared/models';
+import {
+  APPROVAL_STATUS,
+  ApprovalDetail,
+  ERROR_CODES,
+  REQUEST_TYPE,
+  RequestDocument,
+} from 'jp-shared/models';
 import { UiRollComponent, VERIFICATION_STAGES } from 'jp-shared/ui';
+
+import { RegistrationService } from '../../../core/registration.service';
 
 /** One step in the "what happens next" list. */
 interface NextStep {
@@ -58,7 +67,7 @@ interface AccountStatusContent {
 @Component({
   selector: 'app-account-status',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [UiAuthShellComponent, UiRollComponent],
+  imports: [UiAuthShellComponent, UiRollComponent, DatePipe],
   templateUrl: './account-status.component.html',
   styleUrl: './account-status.component.scss',
 })
@@ -66,16 +75,155 @@ export class AccountStatusComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
+  private readonly registration = inject(RegistrationService);
 
   protected readonly stages = VERIFICATION_STAGES;
+
+  /*----------------------------------------------------------------------------
+    🔴 THE REAL REQUEST, NOT A QUERY PARAMETER.
+
+    This screen used to render entirely from ?code=ACCOUNT_PENDING — accurate
+    about the account's state and silent about the registration behind it. The
+    Phase 1D copy promises "if we do, this page will name exactly which one and
+    why", and a promise a screen cannot keep is worse than one it never made.
+
+    So the school's own request is loaded and, when there is one, it decides
+    what this page says. The code is the fallback for the states that have no
+    request at all — suspended, locked.
+  ----------------------------------------------------------------------------*/
+  protected readonly request = signal<ApprovalDetail | null>(null);
+  protected readonly loading = signal(true);
+  protected readonly resubmitting = signal(false);
+
+  /** The request number, when they have just sent it. Shown once, at the top. */
+  protected readonly justSubmitted = toSignal(
+    this.route.queryParamMap.pipe(map((p) => p.get('submitted'))),
+    { initialValue: null },
+  );
+
+  /**
+   * Documents the admin sent back, with the reason attached.
+   *
+   * This is what the Phase 1D copy promised and could not deliver: not "a
+   * document was rejected" but which one, and in the reviewer's own words.
+   */
+  protected readonly rejectedDocuments = computed<RequestDocument[]>(() =>
+    (this.request()?.documents ?? []).filter((d) => !d.isVerified && d.rejectionReasonId !== null),
+  );
+
+  /** The most recent thing an admin did, for the reason on a rejection. */
+  protected readonly lastDecision = computed(() => this.request()?.trail?.[0] ?? null);
+
+  protected readonly statusId = computed(() => this.request()?.header.statusId ?? null);
+
+  /** Approved is final and good; rejected is final and not. Neither can be acted on. */
+  protected readonly isRejected = computed(() => this.statusId() === APPROVAL_STATUS.rejected);
+
+  protected readonly needsResubmit = computed(
+    () => this.statusId() === APPROVAL_STATUS.resubmitRequired,
+  );
+
+  protected readonly isDraft = computed(() => this.statusId() === APPROVAL_STATUS.draft);
+
+  /** Nothing started at all — no request, draft or otherwise. */
+  protected readonly hasNoRequest = computed(() => !this.loading() && this.request() === null);
 
   private readonly code = toSignal(
     this.route.queryParamMap.pipe(map((params) => params.get('code') ?? '')),
     { initialValue: '' },
   );
 
+  constructor() {
+    /*
+      The newest request wins. A school that was rejected and registered again
+      has two, and the one that matters is the one they are waiting on.
+    */
+    this.registration.myRequests().subscribe({
+      next: (rows) => {
+        const mine = rows
+          .filter((r) => r.requestTypeId === REQUEST_TYPE.schoolRegistration)
+          .sort((a, b) => b.requestId - a.requestId)[0];
+
+        if (!mine) {
+          this.loading.set(false);
+          return;
+        }
+
+        this.registration.getById(mine.requestId).subscribe({
+          next: (detail) => {
+            this.request.set(detail);
+            this.loading.set(false);
+          },
+          error: () => this.loading.set(false),
+        });
+      },
+      error: () => this.loading.set(false),
+    });
+  }
+
+  /**
+   * Asks for another look after replacing a document.
+   *
+   * ⚠️ Requestor only, and the server enforces it — not "anyone at the school",
+   * not an administrator. The button is only rendered for the person who
+   * submitted, so the UI does not offer something the API will refuse.
+   */
+  protected resubmit(): void {
+    const request = this.request();
+
+    if (!request || this.resubmitting()) {
+      return;
+    }
+
+    this.resubmitting.set(true);
+
+    this.registration.resubmit(request.header.requestId, request.header.rowVersion).subscribe({
+      next: () => {
+        this.resubmitting.set(false);
+        // Reload rather than patching the signal: the status, the trail and
+        // the row version all moved, and guessing at any of them here is how
+        // this screen starts disagreeing with the queue.
+        window.location.reload();
+      },
+      error: () => this.resubmitting.set(false),
+    });
+  }
+
+  /**
+   * Which state this screen should describe.
+   *
+   * Maps the request's own status onto the same ACCOUNT_* vocabulary the rest
+   * of the app already speaks, so there is one switch rather than two that have
+   * to stay in step.
+   */
+  private readonly effectiveCode = computed(() => {
+    switch (this.statusId()) {
+      case APPROVAL_STATUS.rejected:
+        return ERROR_CODES.accountRejected;
+      case APPROVAL_STATUS.resubmitRequired:
+        return ERROR_CODES.accountResubmitRequired;
+      case APPROVAL_STATUS.pending:
+        return ERROR_CODES.accountPending;
+      default:
+        // No request, or one still in draft. Fall back to whatever the API
+        // said about the account itself.
+        return this.code();
+    }
+  });
+
   protected readonly content = computed<AccountStatusContent>(() => {
-    switch (this.code()) {
+    /*
+      🔴 THE REQUEST DECIDES, NOT THE QUERY STRING.
+
+      A ?code= is what the interceptor put in the URL when the API refused a
+      call. It says something true about the ACCOUNT, and nothing about the
+      registration — and this screen's whole job is the registration.
+
+      So when the school has a request, its real status wins. The code is the
+      fallback for states with no request behind them at all: suspended,
+      locked, or an account that never registered.
+    */
+    switch (this.effectiveCode()) {
       case ERROR_CODES.accountResubmitRequired:
         return {
           label: 'Action needed',

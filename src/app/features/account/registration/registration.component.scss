@@ -1,0 +1,243 @@
+@use 'variables' as v;
+@use 'mixins' as m;
+
+.reg { max-width: 52rem; margin-inline: auto; }
+
+// -----------------------------------------------------------------------------
+// STEPS
+//
+// Numbered, not a bar. A percentage tells somebody how far along they are; the
+// numbers tell them how much is left, which is the question people actually
+// ask before deciding whether to keep going.
+// -----------------------------------------------------------------------------
+.reg-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: v.$space-1 v.$space-4;
+  padding: v.$space-3 v.$space-4;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-radius-lg);
+}
+
+.reg-steps__item {
+  display: flex;
+  align-items: center;
+  gap: v.$space-2;
+  font-size: var(--jp-font-size-sm);
+  color: var(--jp-text-subtle);
+
+  &--done { color: var(--jp-text-muted); }
+
+  &--current {
+    color: var(--jp-text);
+    font-weight: var(--jp-font-weight-semibold);
+  }
+}
+
+.reg-steps__marker {
+  @include m.flex-center;
+  @include m.tabular;
+
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--jp-radius-full);
+  border: 1px solid var(--jp-border);
+  font-size: var(--jp-font-size-xs);
+
+  .reg-steps__item--done & {
+    background: var(--jp-success);
+    border-color: var(--jp-success);
+    color: #fff;
+  }
+
+  .reg-steps__item--current & {
+    background: var(--jp-primary);
+    border-color: var(--jp-primary);
+    color: #fff;
+  }
+}
+
+.reg-card__header {
+  @include m.flex-between(flex-start, v.$space-4);
+
+  flex-wrap: wrap;
+}
+
+// The save state. Quiet by default and only loud when the save failed —
+// "Saved" shouting after every keystroke is the kind of reassurance that stops
+// being read within a minute.
+.reg-save {
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-subtle);
+
+  &--saved { color: var(--jp-success-text, var(--jp-text-muted)); }
+
+  &--failed {
+    color: var(--jp-danger-text);
+    font-weight: var(--jp-font-weight-semibold);
+  }
+}
+
+.reg-lead {
+  margin-bottom: v.$space-4;
+  color: var(--jp-text-muted);
+}
+
+// A statement about the product, not an error. Left rule rather than a tinted
+// box: the same margin-rule grammar the tables use, at a calmer weight.
+.reg-note {
+  margin-top: v.$space-4;
+  padding: v.$space-3 v.$space-4;
+  border-left: var(--jp-margin-rule-width) solid var(--jp-border-strong);
+  background: var(--jp-surface-alt);
+  border-radius: 0 var(--jp-radius-md) var(--jp-radius-md) 0;
+  font-size: var(--jp-font-size-sm);
+  color: var(--jp-text-muted);
+  line-height: var(--jp-line-height-relaxed);
+
+  // Something they have to act on before they can finish.
+  &--stop {
+    border-left-color: var(--jp-danger);
+    color: var(--jp-text);
+  }
+}
+
+.reg-group {
+  padding: v.$space-3 0 0;
+  border: 0;
+
+  .form-check { margin-top: v.$space-2; }
+}
+
+.reg-actions {
+  display: flex;
+  align-items: center;
+  gap: v.$space-3;
+}
+
+.reg-actions__spacer { flex: 1; }
+
+// -----------------------------------------------------------------------------
+// UPLOADS
+// -----------------------------------------------------------------------------
+.uploads {
+  border-top: 1px solid var(--jp-border);
+}
+
+.uploads__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: v.$space-4;
+  flex-wrap: wrap;
+  padding: v.$space-3 0;
+  border-bottom: var(--jp-rule-width) solid var(--jp-rule);
+
+  &:last-child { border-bottom: 0; }
+}
+
+.uploads__what { min-width: 0; }
+
+.uploads__name {
+  display: block;
+  font-size: var(--jp-font-size-sm);
+  font-weight: var(--jp-font-weight-medium);
+}
+
+.uploads__required {
+  margin-left: v.$space-2;
+  font-family: var(--jp-font-family-mono);
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: var(--jp-tracking-wide);
+  color: var(--jp-text-subtle);
+}
+
+// The server's limits, shown BEFORE a file is chosen. A rejection after the
+// upload is a rejection that cost them a minute on a phone connection.
+.uploads__rules {
+  display: block;
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-subtle);
+}
+
+.uploads__state {
+  display: flex;
+  align-items: center;
+  gap: v.$space-3;
+  flex-shrink: 0;
+}
+
+.uploads__file {
+  @include m.truncate;
+
+  max-width: 12rem;
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-muted);
+}
+
+// A label wrapping a hidden input: the styling of a button with the behaviour
+// of a file picker, and it stays keyboard-reachable.
+.uploads__button { cursor: pointer; }
+
+// -----------------------------------------------------------------------------
+// REVIEW
+// -----------------------------------------------------------------------------
+.review {
+  padding-bottom: v.$space-4;
+  margin-bottom: v.$space-4;
+  border-bottom: 1px solid var(--jp-border);
+
+  &:last-of-type { border-bottom: 0; }
+}
+
+.review__head {
+  @include m.flex-between(baseline, v.$space-3);
+
+  margin-bottom: v.$space-3;
+}
+
+.review__title {
+  font-size: var(--jp-font-size-base);
+  font-weight: var(--jp-font-weight-semibold);
+}
+
+.review__doc {
+  @include m.flex-between(baseline, v.$space-3);
+
+  padding: v.$space-2 0;
+  border-bottom: var(--jp-rule-width) solid var(--jp-rule);
+  font-size: var(--jp-font-size-sm);
+
+  &:last-child { border-bottom: 0; }
+}
+
+.review__doc-file {
+  @include m.truncate;
+
+  max-width: 14rem;
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-muted);
+}
+
+.review__doc-missing {
+  font-size: var(--jp-font-size-xs);
+  font-weight: var(--jp-font-weight-semibold);
+  color: var(--jp-danger-text);
+}
+
+@include m.down(md) {
+  .form-grid { grid-template-columns: 1fr; }
+
+  .reg-steps { gap: v.$space-2; }
+
+  // The label is the useful half on a narrow screen; the numbers alone would
+  // be a row of circles meaning nothing.
+  .reg-steps__item:not(.reg-steps__item--current) .reg-steps__label { display: none; }
+
+  .uploads__state {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
