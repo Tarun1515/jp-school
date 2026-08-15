@@ -1,0 +1,91 @@
+@use 'variables' as v;
+@use 'mixins' as m;
+
+// -----------------------------------------------------------------------------
+// 🔴 THE HEAD-OFFICE ROW
+// -----------------------------------------------------------------------------
+//
+// Marked, not disabled. It has no Remove button at all — the server refuses,
+// every school keeps at least one campus, and a greyed-out button reads as
+// broken and gets clicked anyway. The margin rule and the tinted ground say
+// "this row works differently"; the line under the name says how.
+//
+// Same grammar as the owner row on the team screen, deliberately: one product,
+// one way of saying "this one is structural".
+.row--head {
+  --jp-row-rule: var(--jp-primary-400);
+
+  background: var(--jp-primary-50, var(--jp-surface-alt));
+}
+
+.branch__name {
+  display: block;
+  font-weight: var(--jp-font-weight-semibold);
+}
+
+.branch__flag {
+  display: block;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: var(--jp-text-muted);
+}
+
+.branch__meta {
+  display: block;
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  color: var(--jp-text-subtle);
+}
+
+.branch__where {
+  @include m.truncate;
+
+  max-width: 22rem;
+  color: var(--jp-text-muted);
+}
+
+// -----------------------------------------------------------------------------
+// THE DIALOG
+// -----------------------------------------------------------------------------
+.branch-form {
+  @include m.flex-column(v.$space-5);
+}
+
+.fieldset {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--jp-border);
+  padding-top: v.$space-4;
+
+  legend { padding: 0; }
+}
+
+.fieldset__legend {
+  font-size: var(--jp-font-size-sm);
+  font-weight: var(--jp-font-weight-semibold);
+  margin-bottom: v.$space-1;
+}
+
+.note {
+  padding: v.$space-3 v.$space-4;
+  font-size: var(--jp-font-size-sm);
+  line-height: var(--jp-line-height-snug);
+  color: var(--jp-text-muted);
+  background: var(--jp-surface-alt);
+  border-radius: var(--jp-radius-sm);
+}
+
+// The "campus is open" helper sits under its own label rather than beside it —
+// it is a sentence, and a sentence on a checkbox line pushes the box off screen
+// on a phone.
+.form-check .field__helper {
+  display: block;
+  margin-top: 0.125rem;
+}
+
+@include m.down(md) {
+  .branch__where {
+    max-width: 12rem;
+  }
+}

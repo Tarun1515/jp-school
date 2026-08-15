@@ -1,0 +1,310 @@
+<div class="page enter">
+  <header class="page__header">
+    <div class="page__heading">
+      <h1 class="page__title">Campuses</h1>
+      <p class="page__description">
+        Every job is posted at a campus, so this is the list teachers see the
+        address of when they apply.
+      </p>
+    </div>
+
+    <div class="page__actions">
+      <ui-button variant="primary" (click)="openAdd()">Add a campus</ui-button>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="table-wrap" style="--jp-enter-index: 1">
+      <table class="table">
+        <tbody>
+          @for (row of skeletonRows; track row) {
+            <tr>
+              <td><span class="skeleton" style="width: 55%"></span></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else if (loadFailed()) {
+    <div class="card">
+      <div class="card__body text-center">
+        <p class="text-section-title">We could not load your campuses</p>
+        <p class="text-helper">Nothing has changed. This is usually a connection that dropped.</p>
+        <ui-button variant="primary" (click)="load()">Try again</ui-button>
+      </div>
+    </div>
+  } @else {
+    <div class="table-wrap" style="--jp-enter-index: 1">
+      <table class="table">
+        <caption class="visually-hidden">
+          Your school's campuses. The head office is listed first and cannot be
+          removed.
+        </caption>
+
+        <thead>
+          <tr>
+            <th scope="col">Campus</th>
+            <th scope="col">Where</th>
+            <th scope="col">Who to ask for</th>
+            <th scope="col">Status</th>
+            <th scope="col" class="table__actions"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <!--
+            🔴 THE HEAD OFFICE ROW IS MARKED, NOT DISABLED.
+
+            It cannot be removed — every school keeps at least one campus, and
+            the server refuses. So there is no Remove button on this row at all,
+            and the row says what it is. A greyed-out button reads as broken and
+            gets clicked anyway.
+          -->
+          @if (headOffice(); as head) {
+            <tr class="row--head">
+              <td class="table__primary">
+                <span class="branch__name">{{ head.branchName }}</span>
+                <span class="branch__flag">Head office — kept for as long as the school exists</span>
+                @if (head.branchCode) {
+                  <span class="table__code">{{ head.branchCode }}</span>
+                }
+              </td>
+              <td class="branch__where">{{ addressLine(head) || '—' }}</td>
+              <td>
+                {{ head.contactPerson || '—' }}
+                @if (head.contactMobile) {
+                  <span class="branch__meta">{{ head.contactMobile }}</span>
+                }
+              </td>
+              <td>
+                @if (head.isActive) {
+                  <ui-badge tone="success" size="sm">Open</ui-badge>
+                } @else {
+                  <ui-badge tone="neutral" size="sm">Closed</ui-badge>
+                }
+              </td>
+              <td class="table__actions">
+                <ui-button size="sm" variant="ghost" (click)="openEdit(head)">Edit</ui-button>
+              </td>
+            </tr>
+          }
+
+          @for (branch of others(); track branch.branchId) {
+            <tr [class.row--muted]="!branch.isActive">
+              <td class="table__primary">
+                <span class="branch__name">{{ branch.branchName }}</span>
+                @if (branch.branchCode) {
+                  <span class="table__code">{{ branch.branchCode }}</span>
+                }
+              </td>
+              <td class="branch__where">{{ addressLine(branch) || '—' }}</td>
+              <td>
+                {{ branch.contactPerson || '—' }}
+                @if (branch.contactMobile) {
+                  <span class="branch__meta">{{ branch.contactMobile }}</span>
+                }
+              </td>
+              <td>
+                @if (branch.isActive) {
+                  <ui-badge tone="success" size="sm">Open</ui-badge>
+                } @else {
+                  <ui-badge tone="neutral" size="sm">Closed</ui-badge>
+                }
+              </td>
+              <td class="table__actions">
+                <ui-button size="sm" variant="ghost" (click)="openEdit(branch)">Edit</ui-button>
+                <ui-button size="sm" variant="ghost"
+                           [loading]="removingId() === branch.branchId"
+                           (click)="remove(branch)">Remove</ui-button>
+              </td>
+            </tr>
+          }
+
+          @if (others().length === 0) {
+            <tr>
+              <td colspan="5">
+                <div class="table__empty">
+                  <p class="text-section-title">Just the one campus so far</p>
+                  <p class="text-helper">
+                    Add another and you can post jobs at it, and give each
+                    colleague access to the campuses they work with.
+                  </p>
+                  <ui-button variant="primary" size="sm" (click)="openAdd()">Add a campus</ui-button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<!--============================================================================
+  ADD / EDIT
+=============================================================================-->
+<ui-modal
+  [open]="editing() !== null"
+  [title]="dialogTitle()"
+  size="lg"
+  [closeOnBackdrop]="false"
+  (closed)="editing.set(null)"
+>
+  <form class="branch-form" [formGroup]="form" (ngSubmit)="save()">
+    <div class="form-grid">
+      <div class="field">
+        <label class="field__label" for="branchName">Campus name</label>
+        <input class="form-control" id="branchName" type="text" formControlName="branchName"
+               placeholder="North Campus"
+               [attr.aria-invalid]="fieldError('branchName', {}) ? 'true' : null" />
+        @if (fieldError('branchName', { required: 'Give the campus a name.' }); as error) {
+          <span class="field__error">{{ error }}</span>
+        }
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="branchCode">Your own code</label>
+        <input class="form-control" id="branchCode" type="text" formControlName="branchCode"
+               placeholder="NC-02" />
+        <span class="field__helper">Optional — whatever you already call it on your own paperwork.</span>
+      </div>
+
+      <div class="field form-grid__full">
+        <label class="field__label" for="addressLine1">Address</label>
+        <input class="form-control" id="addressLine1" type="text" formControlName="addressLine1" />
+      </div>
+
+      <div class="field form-grid__full">
+        <label class="field__label" for="addressLine2">Address line 2</label>
+        <input class="form-control" id="addressLine2" type="text" formControlName="addressLine2" />
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="branchStateId">State</label>
+        <select class="form-control" id="branchStateId" formControlName="stateId"
+                (change)="onStateChange($any($event.target).value ? +$any($event.target).value : null)">
+          <option [ngValue]="null">Choose…</option>
+          @for (item of states(); track item.id) {
+            <option [ngValue]="item.id">{{ item.name }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- ⚠️ Hidden while the datasets are empty (2.47), exactly as elsewhere. -->
+      @if (hasDistricts()) {
+        <div class="field">
+          <label class="field__label" for="branchDistrictId">District</label>
+          <select class="form-control" id="branchDistrictId" formControlName="districtId"
+                  (change)="onDistrictChange($any($event.target).value ? +$any($event.target).value : null)">
+            <option [ngValue]="null">Choose…</option>
+            @for (item of districts(); track item.id) {
+              <option [ngValue]="item.id">{{ item.name }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      @if (hasCities()) {
+        <div class="field">
+          <label class="field__label" for="branchCityId">City</label>
+          <select class="form-control" id="branchCityId" formControlName="cityId">
+            <option [ngValue]="null">Choose…</option>
+            @for (item of cities(); track item.id) {
+              <option [ngValue]="item.id">{{ item.name }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      <div class="field">
+        <label class="field__label" for="branchPincode">PIN code</label>
+        <input class="form-control" id="branchPincode" type="text" inputmode="numeric"
+               maxlength="6" formControlName="pincode" />
+        @if (fieldError('pincode', { pattern: 'A PIN code is six digits.' }); as error) {
+          <span class="field__error">{{ error }}</span>
+        }
+      </div>
+    </div>
+
+    @if (!hasDistricts()) {
+      <p class="note">
+        We are still building the district and city lists for India. The state
+        and PIN code are enough for now.
+      </p>
+    }
+
+    <!--
+      Latitude and longitude as a plain pair, deliberately.
+
+      A map picker is a nicer control and it is not what this phase is for —
+      "jobs near me" is Phase 4 and does not exist yet, so a picker would be
+      building the interface before the feature that reads it. The fields say
+      what they are for, and can be left empty.
+    -->
+    <fieldset class="fieldset">
+      <legend class="fieldset__legend">Where it is on the map</legend>
+      <p class="field__helper">
+        Optional. When teachers can search by distance, this is what puts you in
+        their results. You can copy both numbers out of Google Maps.
+      </p>
+
+      <div class="form-grid">
+        <div class="field">
+          <label class="field__label" for="latitude">Latitude</label>
+          <input class="form-control" id="latitude" type="number" step="0.000001"
+                 placeholder="19.076090" formControlName="latitude" />
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="longitude">Longitude</label>
+          <input class="form-control" id="longitude" type="number" step="0.000001"
+                 placeholder="72.877426" formControlName="longitude" />
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend class="fieldset__legend">Who to ask for at this campus</legend>
+
+      <div class="form-grid">
+        <div class="field">
+          <label class="field__label" for="contactPerson">Name</label>
+          <input class="form-control" id="contactPerson" type="text" formControlName="contactPerson" />
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="branchContactEmail">Email</label>
+          <input class="form-control" id="branchContactEmail" type="email" formControlName="contactEmail" />
+          @if (fieldError('contactEmail', { email: 'That does not look like an email address.' }); as error) {
+            <span class="field__error">{{ error }}</span>
+          }
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="branchContactMobile">Phone</label>
+          <input class="form-control" id="branchContactMobile" type="tel" inputmode="numeric"
+                 formControlName="contactMobile" />
+          @if (fieldError('contactMobile', { pattern: 'Enter a 10-digit mobile number starting 6 to 9.' }); as error) {
+            <span class="field__error">{{ error }}</span>
+          }
+        </div>
+      </div>
+    </fieldset>
+
+    <label class="form-check">
+      <input class="form-check__input" type="checkbox" formControlName="isActive" />
+      <span class="form-check__label">
+        This campus is open
+        <span class="field__helper">
+          Turn it off for a campus that is closed for now. It stays on record and
+          keeps its jobs — it just stops being somewhere you can post new ones.
+        </span>
+      </span>
+    </label>
+  </form>
+
+  <ng-container footer>
+    <ui-button variant="ghost" (click)="editing.set(null)">Cancel</ui-button>
+    <ui-button variant="primary" [loading]="saving()" (click)="save()">Save campus</ui-button>
+  </ng-container>
+</ui-modal>

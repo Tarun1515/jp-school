@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
-import { activeAccountGuard, authGuard, guestGuard } from 'jp-shared/core';
+import { activeAccountGuard, authGuard, guestGuard, unsavedChangesGuard } from 'jp-shared/core';
 
+import { singleCampusGuard } from './core/school-context.service';
 import { SchoolLayoutComponent } from './layouts/school-layout.component';
 
 /**
@@ -139,8 +140,38 @@ export const routes: Routes = [
             (m) => m.SchoolDashboardComponent,
           ),
       },
-      { path: 'profile', loadComponent: comingSoon, data: { title: 'School profile' } },
-      { path: 'branches', loadComponent: comingSoon, data: { title: 'Branches' } },
+      {
+        path: 'profile',
+        loadComponent: () =>
+          import('./features/school/profile/school-profile.component').then(
+            (m) => m.SchoolProfileComponent,
+          ),
+        /*
+          The profile is five sections long and every one of them holds typed
+          text. canDeactivate asks the component whether anything is dirty —
+          see unsavedChangesGuard for why it uses the native dialog.
+        */
+        canDeactivate: [unsavedChangesGuard],
+        data: { title: 'School profile' },
+      },
+      {
+        /*
+          🔴 singleCampusGuard, not permissionGuard.
+
+          A single-campus school has nothing to manage here (2.10), so it is
+          redirected rather than shown a screen with one immovable row. The
+          menu entry is hidden too — but hiding a link has never stopped
+          anybody typing the URL, which is what this is for.
+
+          It starts working the moment they say they have more than one campus,
+          with no migration and no data change.
+        */
+        path: 'branches',
+        canActivate: [singleCampusGuard],
+        loadComponent: () =>
+          import('./features/school/branches/branches.component').then((m) => m.BranchesComponent),
+        data: { title: 'Campuses' },
+      },
       { path: 'jobs', loadComponent: comingSoon, data: { title: 'Jobs' } },
       {
         path: 'applicants',

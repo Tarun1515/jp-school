@@ -1,0 +1,282 @@
+@use 'variables' as v;
+@use 'mixins' as m;
+
+// Sections are cards down the page, with the page's own rhythm between them.
+// One long sheet would make the whole thing feel like a single form with one
+// save at the bottom, which is exactly what this screen is not.
+.card + .card { margin-top: v.$space-5; }
+
+.profile__skeletons {
+  @include m.flex-column(v.$space-5);
+}
+
+// -----------------------------------------------------------------------------
+// PUBLIC / PRIVATE
+// -----------------------------------------------------------------------------
+//
+// Somebody writing an "about" paragraph should know a teacher reads it, and
+// somebody typing a PAN should know one does not. The tag says which, inline,
+// next to the field rather than in a legend nobody reads.
+.pill {
+  display: inline-block;
+  margin-left: v.$space-1;
+  padding: 0 v.$space-1;
+  border-radius: var(--jp-radius-sm);
+  font-size: 0.625rem;
+  font-weight: var(--jp-font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.pill--public {
+  color: var(--jp-primary-700, var(--jp-primary));
+  background: var(--jp-primary-50, var(--jp-surface-alt));
+}
+
+// -----------------------------------------------------------------------------
+// The name that cannot be edited — shown as a fact, not as a dead input.
+// A disabled text box invites somebody to click it and wonder; a line of text
+// with a reason does not.
+// -----------------------------------------------------------------------------
+.locked-field {
+  @include m.flex-column(0.125rem);
+
+  padding: v.$space-3 v.$space-4;
+  margin-bottom: v.$space-5;
+  background: var(--jp-surface-alt);
+  border-left: 3px solid var(--jp-border-strong);
+  border-radius: var(--jp-radius-sm);
+}
+
+.locked-field__label {
+  font-size: var(--jp-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--jp-text-subtle);
+}
+
+.locked-field__value {
+  font-size: var(--jp-font-size-lg);
+  font-weight: var(--jp-font-weight-semibold);
+}
+
+.locked-field__note {
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-muted);
+}
+
+// -----------------------------------------------------------------------------
+// SAVE STATE
+// -----------------------------------------------------------------------------
+.save-note {
+  font-size: var(--jp-font-size-xs);
+  white-space: nowrap;
+}
+
+.save-note--ok { color: var(--jp-success-text); }
+
+// The conflict. It takes the whole footer width and sits above the button,
+// because it is not a hint about the save — it is the reason the save did not
+// happen.
+.conflict {
+  flex: 1 0 100%;
+  margin: 0 0 v.$space-3;
+  padding: v.$space-3 v.$space-4;
+  font-size: var(--jp-font-size-sm);
+  line-height: var(--jp-line-height-snug);
+  color: var(--jp-text);
+  background: var(--jp-warning-surface, var(--jp-surface-alt));
+  border-left: 3px solid var(--jp-warning);
+  border-radius: var(--jp-radius-sm);
+
+  .btn { margin-left: v.$space-2; }
+}
+
+.card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: v.$space-3;
+  justify-content: flex-end;
+}
+
+.fieldset {
+  padding: 0;
+  margin: v.$space-5 0 0;
+  border: 0;
+
+  legend { padding: 0; }
+}
+
+.fieldset__legend {
+  font-size: var(--jp-font-size-sm);
+  font-weight: var(--jp-font-weight-semibold);
+  margin-bottom: v.$space-2;
+}
+
+.note {
+  margin-top: v.$space-3;
+  padding: v.$space-3 v.$space-4;
+  font-size: var(--jp-font-size-sm);
+  line-height: var(--jp-line-height-snug);
+  color: var(--jp-text-muted);
+  background: var(--jp-surface-alt);
+  border-radius: var(--jp-radius-sm);
+}
+
+// -----------------------------------------------------------------------------
+// LOGO
+// -----------------------------------------------------------------------------
+.logo {
+  display: flex;
+  align-items: center;
+  gap: v.$space-4;
+  margin-top: v.$space-5;
+  padding-top: v.$space-5;
+  border-top: 1px solid var(--jp-border);
+}
+
+.logo__preview {
+  display: grid;
+  place-items: center;
+  width: 6rem;
+  height: 6rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: var(--jp-surface-alt);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-radius-md);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+}
+
+.logo__empty {
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-subtle);
+  text-align: center;
+}
+
+.logo__actions {
+  @include m.flex-column(v.$space-2);
+
+  align-items: flex-start;
+}
+
+// -----------------------------------------------------------------------------
+// FACILITIES
+// -----------------------------------------------------------------------------
+//
+// A grid rather than a column: twenty facilities in one list is a scroll, and
+// they are read by scanning rather than in order.
+.facilities {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: v.$space-2 v.$space-4;
+}
+
+// -----------------------------------------------------------------------------
+// GALLERY
+// -----------------------------------------------------------------------------
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: v.$space-4;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.gallery__item {
+  @include m.flex-column(v.$space-2);
+}
+
+.gallery__frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--jp-surface-alt);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-radius-md);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.gallery__loading {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+// A picture that will not load keeps its tile, its caption and its controls —
+// otherwise the only row somebody wants to delete is the one they cannot reach.
+.gallery__missing {
+  padding: v.$space-3;
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-muted);
+  text-align: center;
+}
+
+// The first tile is the one teachers see first, so the tile says so rather than
+// leaving it to be inferred from position.
+.gallery__flag {
+  position: absolute;
+  top: v.$space-2;
+  left: v.$space-2;
+  padding: 0.125rem v.$space-2;
+  font-size: 0.625rem;
+  font-weight: var(--jp-font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--jp-text-inverse);
+  background: var(--jp-surface-dark);
+  border-radius: var(--jp-radius-sm);
+}
+
+.gallery__controls {
+  display: flex;
+  align-items: center;
+  gap: v.$space-1;
+}
+
+.gallery__remove {
+  margin-left: auto;
+  color: var(--jp-danger-text);
+}
+
+.empty {
+  padding: v.$space-8 v.$space-4;
+  text-align: center;
+}
+
+// -----------------------------------------------------------------------------
+// On a phone the page is a single column of cards, and the footer's buttons go
+// full width — a right-aligned button at 375px is a small target in the corner
+// somebody's thumb reaches last.
+// -----------------------------------------------------------------------------
+@include m.down(md) {
+  .card__footer {
+    justify-content: stretch;
+
+    ui-button { flex: 1 0 100%; }
+  }
+
+  .logo {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .gallery {
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  }
+}

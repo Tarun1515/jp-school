@@ -1,0 +1,567 @@
+<div class="page enter">
+  <header class="page__header">
+    <div class="page__heading">
+      <h1 class="page__title">School profile</h1>
+      <p class="page__description">
+        Everything about your school. The sections marked
+        <span class="pill pill--public">public</span> are what a teacher sees
+        when they look you up.
+      </p>
+    </div>
+
+    @if (profile(); as school) {
+      <div class="page__actions">
+        @if (school.isVerified) {
+          <ui-badge tone="success">Verified</ui-badge>
+        } @else {
+          <ui-badge tone="warning">Not verified yet</ui-badge>
+        }
+      </div>
+    }
+  </header>
+
+  @if (loading()) {
+    <div class="profile__skeletons">
+      @for (row of skeletonRows; track row) {
+        <div class="card">
+          <div class="card__body">
+            <span class="skeleton" style="width: 30%; height: 1rem"></span>
+            <span class="skeleton" style="width: 100%; margin-top: 1rem"></span>
+            <span class="skeleton" style="width: 80%; margin-top: 0.5rem"></span>
+          </div>
+        </div>
+      }
+    </div>
+  } @else if (loadFailed()) {
+    <div class="card">
+      <div class="card__body text-center">
+        <p class="text-section-title">We could not load your school</p>
+        <p class="text-helper">
+          Nothing has been lost. This is usually a connection that dropped.
+        </p>
+        <ui-button variant="primary" (click)="load()">Try again</ui-button>
+      </div>
+    </div>
+  } @else if (profile(); as school) {
+    <!--====================================================================
+      1. BASIC DETAILS
+    =====================================================================-->
+    <section class="card" style="--jp-enter-index: 1">
+      <div class="card__header">
+        <div>
+          <h2 class="card__title">Basic details</h2>
+          <p class="card__subtitle">
+            Your name and board are shown publicly. Your PAN, affiliation and
+            registration numbers are for verification only and are never
+            published.
+          </p>
+        </div>
+        @if (stateOf('basics') === 'saved') {
+          <span class="save-note save-note--ok">Saved</span>
+        }
+      </div>
+
+      <div class="card__body">
+        <!--
+          The name is READ-ONLY and says why. It was verified; a rename changes
+          what was checked, so the server refuses it and this explains rather
+          than offering a field that fails on save.
+        -->
+        <div class="locked-field">
+          <span class="locked-field__label">School name</span>
+          <span class="locked-field__value">{{ school.schoolName }}</span>
+          <span class="locked-field__note">
+            This is the name we verified. To change it, contact us — it goes
+            through verification again.
+          </span>
+        </div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label class="field__label" for="schoolTypeId">
+              School type <span class="pill pill--public">public</span>
+            </label>
+            <select class="form-control" id="schoolTypeId"
+                    [ngModel]="value('schoolTypeId')"
+                    (ngModelChange)="set('schoolTypeId', $event, 'basics')">
+              <option [ngValue]="null">Choose…</option>
+              @for (item of schoolTypes(); track item.id) {
+                <option [ngValue]="item.id">{{ item.name }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="boardId">
+              Board <span class="pill pill--public">public</span>
+            </label>
+            <select class="form-control" id="boardId"
+                    [ngModel]="value('boardId')"
+                    (ngModelChange)="set('boardId', $event, 'basics')">
+              <option [ngValue]="null">Choose…</option>
+              @for (item of boards(); track item.id) {
+                <option [ngValue]="item.id">{{ item.name }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="establishedYear">
+              Established <span class="pill pill--public">public</span>
+            </label>
+            <input class="form-control" id="establishedYear" type="number"
+                   inputmode="numeric" min="1800" max="2100" placeholder="1998"
+                   [ngModel]="value('establishedYear')"
+                   (ngModelChange)="set('establishedYear', $event, 'basics')" />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="affiliationNumber">Affiliation number</label>
+            <input class="form-control" id="affiliationNumber" type="text"
+                   [ngModel]="value('affiliationNumber')"
+                   (ngModelChange)="set('affiliationNumber', $event, 'basics')" />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="registrationNo">Registration number</label>
+            <input class="form-control" id="registrationNo" type="text"
+                   [ngModel]="value('registrationNo')"
+                   (ngModelChange)="set('registrationNo', $event, 'basics')" />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="panNumber">PAN</label>
+            <input class="form-control" id="panNumber" type="text" maxlength="10"
+                   placeholder="AAAAA0000A" style="text-transform: uppercase"
+                   [ngModel]="value('panNumber')"
+                   (ngModelChange)="set('panNumber', $event, 'basics')" />
+            <span class="field__helper">Never shown to teachers.</span>
+          </div>
+        </div>
+
+        <!--
+          🔴 GroupType — the one field on this page that changes what the app
+          looks like. Said plainly, because the effect is immediate and the
+          school will notice the menu change.
+        -->
+        <fieldset class="fieldset">
+          <legend class="fieldset__legend">How many campuses do you have?</legend>
+
+          <div class="form-check-group form-check-group--horizontal">
+            @for (option of groupTypes; track option.value) {
+              <label class="form-check">
+                <input class="form-check__input" type="radio" name="groupType"
+                       [value]="option.value"
+                       [checked]="value('groupType') === option.value"
+                       (change)="set('groupType', option.value, 'basics')" />
+                <span class="form-check__label">{{ option.label }}</span>
+              </label>
+            }
+          </div>
+
+          <p class="field__helper">
+            @if (value('groupType') === 1) {
+              With one campus we keep the app simple — no branches menu and no
+              campus columns anywhere. Nothing is lost by choosing this: if you
+              open another campus later, switch this and everything appears.
+            } @else {
+              You will get a Branches screen, and you can give each colleague
+              access to particular campuses.
+            }
+          </p>
+        </fieldset>
+
+        <!-- LOGO -->
+        <div class="logo">
+          <div class="logo__preview">
+            @if (logoUrl(); as url) {
+              <img [src]="url" alt="Your school logo" />
+            } @else {
+              <span class="logo__empty">No logo yet</span>
+            }
+          </div>
+
+          <div class="logo__actions">
+            <label class="btn btn--sm" for="logo-input">
+              {{ logoUrl() ? 'Replace logo' : 'Upload a logo' }}
+            </label>
+            <input class="visually-hidden" id="logo-input" type="file"
+                   accept=".jpg,.jpeg,.png" (change)="onLogoChosen($event)" />
+            <span class="field__helper">
+              JPG or PNG, up to 5 MB. Shown beside your name wherever teachers
+              see your school.
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card__footer">
+        @if (stateOf('basics') === 'conflict') {
+          <p class="conflict">
+            <strong>Somebody else edited this school while you had it open.</strong>
+            Your changes have not been saved. Reload to see theirs — anything you
+            typed will be lost, so copy it first if you need it.
+            <button type="button" class="btn btn--sm" (click)="reloadAfterConflict()">
+              Reload
+            </button>
+          </p>
+        }
+
+        <ui-button variant="primary"
+                   [disabled]="!isDirty('basics')"
+                   [loading]="stateOf('basics') === 'saving'"
+                   (click)="saveSection('basics')">
+          Save basic details
+        </ui-button>
+      </div>
+    </section>
+
+    <!--====================================================================
+      2. ABOUT
+    =====================================================================-->
+    <section class="card" style="--jp-enter-index: 2">
+      <div class="card__header">
+        <div>
+          <h2 class="card__title">
+            About your school <span class="pill pill--public">public</span>
+          </h2>
+          <p class="card__subtitle">
+            This is the paragraph a teacher reads before deciding whether to
+            apply. Write it for them, not for a brochure.
+          </p>
+        </div>
+        @if (stateOf('about') === 'saved') {
+          <span class="save-note save-note--ok">Saved</span>
+        }
+      </div>
+
+      <div class="card__body">
+        <div class="field">
+          <label class="field__label" for="aboutSchool">About</label>
+          <textarea class="form-control" id="aboutSchool" rows="6"
+                    placeholder="What is it like to teach here? Class sizes, the kind of support new teachers get, what you are known for."
+                    [ngModel]="value('aboutSchool')"
+                    (ngModelChange)="set('aboutSchool', $event, 'about')"></textarea>
+          <span class="field__helper">
+            Teachers see this on your school page.
+          </span>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="website">
+            Website <span class="pill pill--public">public</span>
+          </label>
+          <input class="form-control" id="website" type="url" placeholder="https://"
+                 [ngModel]="value('website')"
+                 (ngModelChange)="set('website', $event, 'about')" />
+        </div>
+      </div>
+
+      <div class="card__footer">
+        @if (stateOf('about') === 'conflict') {
+          <p class="conflict">
+            <strong>Somebody else edited this school while you had it open.</strong>
+            Reload to see their version.
+            <button type="button" class="btn btn--sm" (click)="reloadAfterConflict()">Reload</button>
+          </p>
+        }
+
+        <ui-button variant="primary"
+                   [disabled]="!isDirty('about')"
+                   [loading]="stateOf('about') === 'saving'"
+                   (click)="saveSection('about')">
+          Save about
+        </ui-button>
+      </div>
+    </section>
+
+    <!--====================================================================
+      3. FACILITIES
+    =====================================================================-->
+    <section class="card" style="--jp-enter-index: 3">
+      <div class="card__header">
+        <div>
+          <h2 class="card__title">
+            Facilities <span class="pill pill--public">public</span>
+          </h2>
+          <p class="card__subtitle">
+            Tick everything you have. Teachers filter on these, so a facility
+            left unticked is a search you do not appear in.
+          </p>
+        </div>
+        @if (stateOf('facilities') === 'saved') {
+          <span class="save-note save-note--ok">Saved</span>
+        }
+      </div>
+
+      <div class="card__body">
+        @if (facilities().length === 0) {
+          <p class="text-helper">The facility list could not be loaded.</p>
+        } @else {
+          <div class="facilities">
+            @for (facility of facilities(); track facility.id) {
+              <label class="form-check">
+                <input class="form-check__input" type="checkbox"
+                       [checked]="hasFacility(facility.id)"
+                       (change)="toggleFacility(facility.id, $any($event.target).checked)" />
+                <span class="form-check__label">{{ facility.name }}</span>
+              </label>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="card__footer">
+        <ui-button variant="primary"
+                   [disabled]="!isDirty('facilities')"
+                   [loading]="stateOf('facilities') === 'saving'"
+                   (click)="saveFacilities()">
+          Save facilities
+        </ui-button>
+      </div>
+    </section>
+
+    <!--====================================================================
+      4. PHOTO GALLERY
+    =====================================================================-->
+    <section class="card" style="--jp-enter-index: 4">
+      <div class="card__header">
+        <div>
+          <h2 class="card__title">
+            Photos <span class="pill pill--public">public</span>
+          </h2>
+          <p class="card__subtitle">
+            The first photo is the one teachers see first. Use the arrows to
+            change the order.
+          </p>
+        </div>
+        @if (stateOf('gallery') === 'saved') {
+          <span class="save-note save-note--ok">Order saved</span>
+        }
+      </div>
+
+      <div class="card__body">
+        @if (gallery().length === 0) {
+          <div class="empty">
+            <p class="text-section-title">No photos yet</p>
+            <p class="text-helper">
+              Two or three good ones do more than a dozen — the building, a
+              classroom in use, and the staff room.
+            </p>
+          </div>
+        } @else {
+          <ol class="gallery">
+            @for (item of gallery(); track item.photoId; let i = $index, first = $first, last = $last) {
+              <li class="gallery__item">
+                <div class="gallery__frame">
+                  @if (item.objectUrl) {
+                    <img [src]="item.objectUrl" [alt]="item.caption || 'School photo'" />
+                  } @else if (item.failed) {
+                    <span class="gallery__missing">
+                      This picture could not be loaded
+                    </span>
+                  } @else {
+                    <span class="skeleton gallery__loading"></span>
+                  }
+
+                  @if (first) {
+                    <span class="gallery__flag">Shown first</span>
+                  }
+                </div>
+
+                <input class="form-control form-control--sm" type="text"
+                       placeholder="Add a caption"
+                       [attr.aria-label]="'Caption for photo ' + (i + 1)"
+                       [ngModel]="captionOf(item.photoId)"
+                       (ngModelChange)="setCaption(item.photoId, $event)"
+                       (blur)="commitCaption(item)" />
+
+                <div class="gallery__controls">
+                  <button type="button" class="btn btn--ghost btn--sm"
+                          [disabled]="first"
+                          [attr.aria-label]="'Move photo ' + (i + 1) + ' earlier'"
+                          (click)="movePhoto(item.photoId, -1)">←</button>
+
+                  <button type="button" class="btn btn--ghost btn--sm"
+                          [disabled]="last"
+                          [attr.aria-label]="'Move photo ' + (i + 1) + ' later'"
+                          (click)="movePhoto(item.photoId, 1)">→</button>
+
+                  <button type="button" class="btn btn--ghost btn--sm gallery__remove"
+                          (click)="removePhoto(item)">Remove</button>
+                </div>
+              </li>
+            }
+          </ol>
+        }
+      </div>
+
+      <div class="card__footer">
+        <label class="btn btn--primary" for="photo-input">
+          {{ uploading() ? 'Uploading…' : 'Add photos' }}
+        </label>
+        <input class="visually-hidden" id="photo-input" type="file" multiple
+               accept=".jpg,.jpeg,.png" (change)="onPhotoChosen($event)" />
+        <span class="field__helper">JPG or PNG, up to 5 MB each.</span>
+      </div>
+    </section>
+
+    <!--====================================================================
+      5. CONTACT AND ADDRESS
+    =====================================================================-->
+    <section class="card" style="--jp-enter-index: 5">
+      <div class="card__header">
+        <div>
+          <h2 class="card__title">Contact and address</h2>
+          <p class="card__subtitle">
+            Your address is <span class="pill pill--public">public</span>, so
+            teachers know where the job is. The principal and HR details are for
+            us, and are never published.
+          </p>
+        </div>
+        @if (stateOf('contact') === 'saved') {
+          <span class="save-note save-note--ok">Saved</span>
+        }
+      </div>
+
+      <div class="card__body">
+        <div class="form-grid">
+          <div class="field form-grid__full">
+            <label class="field__label" for="addressLine1">
+              Address <span class="pill pill--public">public</span>
+            </label>
+            <input class="form-control" id="addressLine1" type="text"
+                   [ngModel]="value('addressLine1')"
+                   (ngModelChange)="set('addressLine1', $event, 'contact')" />
+          </div>
+
+          <div class="field form-grid__full">
+            <label class="field__label" for="addressLine2">Address line 2</label>
+            <input class="form-control" id="addressLine2" type="text"
+                   [ngModel]="value('addressLine2')"
+                   (ngModelChange)="set('addressLine2', $event, 'contact')" />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="stateId">State</label>
+            <select class="form-control" id="stateId"
+                    [ngModel]="value('stateId')"
+                    (ngModelChange)="onStateChange($event)">
+              <option [ngValue]="null">Choose…</option>
+              @for (item of states(); track item.id) {
+                <option [ngValue]="item.id">{{ item.name }}</option>
+              }
+            </select>
+          </div>
+
+          <!--
+            ⚠️ District and city are HIDDEN when the dataset is empty, which is
+            the case today (2.47). Exactly the handling the registration form
+            uses — a disabled empty dropdown is a thing people keep clicking.
+          -->
+          @if (hasDistricts()) {
+            <div class="field">
+              <label class="field__label" for="districtId">District</label>
+              <select class="form-control" id="districtId"
+                      [ngModel]="value('districtId')"
+                      (ngModelChange)="onDistrictChange($event)">
+                <option [ngValue]="null">Choose…</option>
+                @for (item of districts(); track item.id) {
+                  <option [ngValue]="item.id">{{ item.name }}</option>
+                }
+              </select>
+            </div>
+          }
+
+          @if (hasCities()) {
+            <div class="field">
+              <label class="field__label" for="cityId">City</label>
+              <select class="form-control" id="cityId"
+                      [ngModel]="value('cityId')"
+                      (ngModelChange)="set('cityId', $event, 'contact')">
+                <option [ngValue]="null">Choose…</option>
+                @for (item of cities(); track item.id) {
+                  <option [ngValue]="item.id">{{ item.name }}</option>
+                }
+              </select>
+            </div>
+          }
+
+          <div class="field">
+            <label class="field__label" for="pincode">PIN code</label>
+            <input class="form-control" id="pincode" type="text" inputmode="numeric"
+                   maxlength="6"
+                   [ngModel]="value('pincode')"
+                   (ngModelChange)="set('pincode', $event, 'contact')" />
+          </div>
+        </div>
+
+        @if (!hasDistricts()) {
+          <p class="note">
+            We are still building the district and city lists for India. Your
+            state and PIN code are enough — we will fill in the rest for you.
+          </p>
+        }
+
+        <div class="form-grid">
+          <div class="field">
+            <label class="field__label" for="contactEmail">
+              School email <span class="pill pill--public">public</span>
+            </label>
+            <input class="form-control" id="contactEmail" type="email"
+                   [ngModel]="value('contactEmail')"
+                   (ngModelChange)="set('contactEmail', $event, 'contact')" />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="contactMobile">
+              School phone <span class="pill pill--public">public</span>
+            </label>
+            <input class="form-control" id="contactMobile" type="tel" inputmode="numeric"
+                   [ngModel]="value('contactMobile')"
+                   (ngModelChange)="set('contactMobile', $event, 'contact')" />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="principalName">Principal</label>
+            <input class="form-control" id="principalName" type="text"
+                   [ngModel]="value('principalName')"
+                   (ngModelChange)="set('principalName', $event, 'contact')" />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="hrContactName">Who handles hiring</label>
+            <input class="form-control" id="hrContactName" type="text"
+                   [ngModel]="value('hrContactName')"
+                   (ngModelChange)="set('hrContactName', $event, 'contact')" />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="hrContactMobile">Their phone</label>
+            <input class="form-control" id="hrContactMobile" type="tel" inputmode="numeric"
+                   [ngModel]="value('hrContactMobile')"
+                   (ngModelChange)="set('hrContactMobile', $event, 'contact')" />
+            <span class="field__helper">We use this if we need to reach you about a job.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card__footer">
+        @if (stateOf('contact') === 'conflict') {
+          <p class="conflict">
+            <strong>Somebody else edited this school while you had it open.</strong>
+            Reload to see their version.
+            <button type="button" class="btn btn--sm" (click)="reloadAfterConflict()">Reload</button>
+          </p>
+        }
+
+        <ui-button variant="primary"
+                   [disabled]="!isDirty('contact')"
+                   [loading]="stateOf('contact') === 'saving'"
+                   (click)="saveSection('contact')">
+          Save contact details
+        </ui-button>
+      </div>
+    </section>
+  }
+</div>
