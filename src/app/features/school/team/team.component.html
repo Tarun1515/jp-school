@@ -1,0 +1,336 @@
+<div class="page enter">
+  <header class="page__header">
+    <div class="page__heading">
+      <h1 class="page__title">Team</h1>
+      <p class="page__description">
+        Everyone at your school who can use this account — what each person is
+        able to do, and which campuses they can see.
+      </p>
+    </div>
+
+    @if (canManage()) {
+      <div class="page__actions">
+        <ui-button variant="primary" (click)="openInvite()">Invite a colleague</ui-button>
+      </div>
+    }
+  </header>
+
+  <!--
+    Two facts, and the second only when it is true. Somebody who never set a
+    password is the reason a school says "I invited them and nothing happened".
+  -->
+  @if (!loading() && members().length > 0) {
+    <p class="team__summary" style="--jp-enter-index: 1">
+      {{ activeCount() }} {{ activeCount() === 1 ? 'person has' : 'people have' }} access.
+      @if (invitedCount() > 0) {
+        <span class="team__summary-note">
+          {{ invitedCount() }} still to set a password.
+        </span>
+      }
+    </p>
+  }
+
+  <div class="table-wrap" style="--jp-enter-index: 2">
+    <table class="table team__table">
+      <caption class="visually-hidden">
+        Your school's team. Each row is a person; the campus columns show which
+        campuses that person can see.
+      </caption>
+
+      <thead>
+        <tr>
+          <th scope="col">Person</th>
+          <th scope="col">Role</th>
+
+          @if (showCampusScope()) {
+            @for (campus of campuses(); track campus.branchId) {
+              <th scope="col" class="team__col-campus" [title]="campus.branchName">
+                {{ campus.branchName }}
+              </th>
+            }
+          }
+
+          <th scope="col">Status</th>
+          @if (canManage()) {
+            <th scope="col" class="table__actions"><span class="visually-hidden">Actions</span></th>
+          }
+        </tr>
+      </thead>
+
+      <tbody>
+        @if (loading()) {
+          @for (row of skeletonRows; track row) {
+            <tr>
+              <td colspan="99"><span class="skeleton" style="width: 60%"></span></td>
+            </tr>
+          }
+        } @else if (members().length === 0) {
+          <tr>
+            <td colspan="99">
+              <div class="table__empty">
+                <p class="text-section-title">Nobody else is on this account yet</p>
+                <p class="text-helper">
+                  Invite the people who will post jobs and read applications. You
+                  choose what each of them can do, and which campuses they see.
+                </p>
+              </div>
+            </td>
+          </tr>
+        } @else {
+          @for (member of members(); track member.userUid) {
+            <tr [class]="rowState(member)">
+              <td class="table__primary team__person">
+                <span class="team__name">{{ displayName(member) }}</span>
+                @if (secondLine(member)) {
+                  <span class="team__meta">{{ secondLine(member) }}</span>
+                }
+              </td>
+
+              <td class="team__role">
+                {{ member.roleName }}
+                @if (member.isOwner) {
+                  <span class="team__owner-tag">this account's owner</span>
+                }
+              </td>
+
+              <!--
+                🔴 THE OWNER ROW IS DIFFERENT, NOT DISABLED.
+
+                A row of greyed ticks reads as broken, and the reader's next
+                move is to click one anyway, then reload, then ask somebody. So
+                there are no controls here at all — just the sentence that is
+                true.
+              -->
+              @if (showCampusScope()) {
+                @if (member.isOwner) {
+                  <td class="team__owner-scope" [attr.colspan]="campuses().length">
+                    Every campus — an owner is never scoped to one.
+                  </td>
+                } @else {
+                  @for (campus of campuses(); track campus.branchId) {
+                    <td class="team__cell">
+                      @if (canManage() && member.isActive) {
+                        <label class="team__tick">
+                          <span class="visually-hidden">
+                            {{ displayName(member) }} can see {{ campus.branchName }}
+                          </span>
+                          <input
+                            type="checkbox"
+                            [checked]="hasCampus(member, campus.branchId)"
+                            [disabled]="isSaving(member)"
+                            (change)="toggleCampus(member, campus.branchId, $any($event.target).checked)"
+                          />
+                        </label>
+                      } @else {
+                        <span
+                          class="team__tick-read"
+                          [class.team__tick-read--on]="hasCampus(member, campus.branchId)"
+                        >
+                          {{ hasCampus(member, campus.branchId) ? 'Yes' : '—' }}
+                        </span>
+                      }
+                    </td>
+                  }
+                }
+              }
+
+              <td class="team__status">
+                <ui-badge [tone]="statusTone(member)" size="sm">{{ statusLabel(member) }}</ui-badge>
+
+                <!--
+                  ⚠️ Campuses this reader has no access to. Said out loud rather
+                  than left out: under-reporting a colleague's access would be a
+                  lie the screen tells with a straight face.
+                -->
+                @if (hiddenCampusCount(member) > 0) {
+                  <span class="team__hidden">
+                    +{{ hiddenCampusCount(member) }} campus{{ hiddenCampusCount(member) === 1 ? '' : 'es' }}
+                    you cannot see
+                  </span>
+                }
+              </td>
+
+              @if (canManage()) {
+                <td class="table__actions team__actions">
+                  @if (member.isActive) {
+                    <ui-button size="sm" variant="ghost" (click)="openEdit(member)">Edit</ui-button>
+
+                    <!-- The owner has no Remove button. There is nothing to disable. -->
+                    @if (!member.isOwner) {
+                      <ui-button
+                        size="sm"
+                        variant="ghost"
+                        [loading]="isSaving(member)"
+                        (click)="remove(member)"
+                      >
+                        Remove
+                      </ui-button>
+                    }
+                  } @else {
+                    <ui-button size="sm" variant="secondary" (click)="reinvite(member)">
+                      Invite back
+                    </ui-button>
+                  }
+                </td>
+              }
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (showCampusScope() && canManage() && members().length > 0) {
+    <p class="team__note">
+      Ticking a campus saves straight away. Somebody with nothing ticked can sign
+      in but will not see any jobs or applicants.
+    </p>
+  }
+</div>
+
+<!--============================================================================
+  INVITE
+=============================================================================-->
+<ui-modal
+  [open]="inviteOpen()"
+  title="Invite a colleague"
+  size="md"
+  [closeOnBackdrop]="false"
+  (closed)="inviteOpen.set(false)"
+>
+  <form class="team__form" [formGroup]="inviteForm" (ngSubmit)="sendInvite()">
+    <p class="text-helper">
+      They will get an email from us, set their own password, and land on this
+      school. Nobody here ever sees that password — not even you.
+    </p>
+
+    <ui-input
+      label="Their name"
+      formControlName="fullName"
+      autocomplete="off"
+      [required]="true"
+      [error]="fieldError(inviteForm.controls.fullName, { required: 'Enter their name.' })"
+      helper="What your team will see in this list."
+    />
+
+    <ui-input
+      label="Their email address"
+      type="email"
+      formControlName="email"
+      autocomplete="off"
+      [required]="true"
+      [error]="
+        fieldError(inviteForm.controls.email, {
+          required: 'Enter their email address.',
+          email: 'That does not look like an email address.'
+        })
+      "
+      helper="The invitation goes here, and it becomes their sign-in."
+    />
+
+    <ui-select
+      label="What they will do"
+      formControlName="roleInSchool"
+      [options]="roleOptions"
+      [required]="true"
+      [helper]="inviteHelp()"
+    />
+
+    <ui-input
+      label="Their job title"
+      formControlName="designationText"
+      autocomplete="off"
+      helper="Optional. Whatever it says on their card — 'Vice Principal (Academics)'."
+    />
+
+    <!-- ⚠️ Nothing here at GroupType 1: one campus, one answer (2.50). -->
+    @if (showCampusScope()) {
+      <fieldset class="team__fieldset">
+        <legend class="text-section-title">Campuses they can see</legend>
+        <p class="text-helper">
+          They will only see jobs and applicants at the campuses you tick.
+        </p>
+
+        <div class="form-check-group">
+          @for (campus of campuses(); track campus.branchId) {
+            <label class="form-check">
+              <input
+                class="form-check__input"
+                type="checkbox"
+                [checked]="inviteBranchIds().has(campus.branchId)"
+                (change)="toggleInviteCampus(campus.branchId, $any($event.target).checked)"
+              />
+              <span class="form-check__label">
+                {{ campus.branchName }}
+                @if (campus.isHeadOffice) {
+                  <span class="team__tag">Head office</span>
+                }
+              </span>
+            </label>
+          }
+        </div>
+      </fieldset>
+    }
+  </form>
+
+  <ng-container footer>
+    <ui-button variant="ghost" (click)="inviteOpen.set(false)">Cancel</ui-button>
+    <ui-button variant="primary" [loading]="inviting()" (click)="sendInvite()">
+      Send invitation
+    </ui-button>
+  </ng-container>
+</ui-modal>
+
+<!--============================================================================
+  EDIT
+=============================================================================-->
+<ui-modal
+  [open]="editing() !== null"
+  [title]="editTitle()"
+  size="md"
+  [closeOnBackdrop]="false"
+  (closed)="editing.set(null)"
+>
+  <form class="team__form" [formGroup]="editForm" (ngSubmit)="saveEdit()">
+    <ui-input
+      label="Their name"
+      formControlName="fullName"
+      autocomplete="off"
+      helper="What your team sees in this list."
+    />
+
+    <ui-input
+      label="Their job title"
+      formControlName="designationText"
+      autocomplete="off"
+      helper="Optional."
+    />
+
+    <!--
+      🔴 The owner's role is not editable, and the control is not shown at all —
+      a disabled dropdown invites somebody to try it, then to ask why.
+
+      Their NAME is editable, which is the whole reason this dialog opens for
+      them: provisioning never recorded one, so every owner starts nameless.
+    -->
+    @if (editing()?.isOwner) {
+      <p class="team__locked">
+        <strong>Owner.</strong> A school has exactly one owner and the role
+        cannot be changed here — a school without one cannot be administered by
+        anybody, including you. Owners see every campus.
+      </p>
+    } @else {
+      <ui-select
+        label="What they do"
+        formControlName="roleInSchool"
+        [options]="roleOptions"
+        [required]="true"
+      />
+    }
+  </form>
+
+  <ng-container footer>
+    <ui-button variant="ghost" (click)="editing.set(null)">Cancel</ui-button>
+    <ui-button variant="primary" [loading]="savingEdit()" (click)="saveEdit()">Save</ui-button>
+  </ng-container>
+</ui-modal>

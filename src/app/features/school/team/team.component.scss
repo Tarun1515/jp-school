@@ -1,0 +1,199 @@
+@use 'variables' as v;
+@use 'mixins' as m;
+
+.team__summary {
+  font-size: var(--jp-font-size-sm);
+  color: var(--jp-text-muted);
+}
+
+// The one number worth stopping on: people who were invited and never arrived.
+// A school reads that as "nothing happened" and re-invites, which does nothing
+// either — so it is stated here rather than left to be inferred from the rows.
+.team__summary-note {
+  margin-left: v.$space-2;
+  color: var(--jp-warning-text);
+}
+
+// -----------------------------------------------------------------------------
+// THE MATRIX
+// -----------------------------------------------------------------------------
+
+// Campus columns are narrow and centred: the column is a tick, not a value, and
+// the header is the only wide thing in it.
+.team__col-campus {
+  width: 7.5rem;
+  text-align: center;
+
+  @include m.truncate;
+}
+
+.team__cell {
+  text-align: center;
+}
+
+.team__tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  input {
+    width: 1.125rem;
+    height: 1.125rem;
+    margin: 0;
+    accent-color: var(--jp-primary);
+    cursor: pointer;
+
+    @include m.focus-ring;
+
+    &:disabled { cursor: progress; }
+  }
+}
+
+// What somebody without USER.MANAGE sees. A word, not a disabled checkbox —
+// they are reading, and a control they cannot use is noise in a column they are
+// only scanning.
+.team__tick-read {
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-subtle);
+}
+
+.team__tick-read--on {
+  color: var(--jp-text-muted);
+  font-weight: var(--jp-font-weight-semibold);
+}
+
+// -----------------------------------------------------------------------------
+// 🔴 THE OWNER ROW
+// -----------------------------------------------------------------------------
+//
+// Marked, not disabled. The margin rule and a tinted ground say "this row works
+// differently"; the sentence across the campus columns says how. There is
+// nothing to click, so there is nothing to wonder about — which is exactly what
+// a row of greyed checkboxes fails at.
+.row--owner {
+  --jp-row-rule: var(--jp-primary-400);
+
+  background: var(--jp-primary-50, var(--jp-surface-alt));
+}
+
+.team__owner-scope {
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-muted);
+  font-style: italic;
+  text-align: center;
+}
+
+.team__owner-tag {
+  display: block;
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  color: var(--jp-text-subtle);
+}
+
+// -----------------------------------------------------------------------------
+// THE PERSON CELL
+// -----------------------------------------------------------------------------
+
+.team__person {
+  @include m.flex-column(0);
+
+  padding-top: v.$space-2;
+  padding-bottom: v.$space-2;
+}
+
+.team__name {
+  font-weight: var(--jp-font-weight-semibold);
+}
+
+// The address, and the job title if there is one. In the register's smaller
+// hand: present for anyone who needs it, quiet enough to scan past.
+.team__meta {
+  @include m.truncate;
+
+  max-width: 22rem;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: var(--jp-text-subtle);
+}
+
+.team__role {
+  white-space: nowrap;
+}
+
+.team__status {
+  white-space: nowrap;
+}
+
+// ⚠️ Access this reader cannot see, stated rather than hidden.
+.team__hidden {
+  display: block;
+  margin-top: 0.125rem;
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  color: var(--jp-text-subtle);
+}
+
+.team__actions {
+  white-space: nowrap;
+}
+
+.team__note {
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-subtle);
+}
+
+// -----------------------------------------------------------------------------
+// DIALOGS
+// -----------------------------------------------------------------------------
+
+.team__form {
+  @include m.flex-column(v.$space-4);
+}
+
+.team__fieldset {
+  padding: 0;
+  margin: 0;
+  border: 0;
+
+  legend { padding: 0; }
+}
+
+.team__tag {
+  margin-left: v.$space-2;
+  font-size: 0.6875rem;
+  color: var(--jp-text-subtle);
+}
+
+// The owner's locked role, said as a sentence with its reason. A disabled
+// dropdown says only "no".
+.team__locked {
+  padding: v.$space-3 v.$space-4;
+  font-size: var(--jp-font-size-sm);
+  line-height: var(--jp-line-height-snug);
+  color: var(--jp-text-muted);
+  background: var(--jp-surface-alt);
+  border-left: 3px solid var(--jp-primary-400);
+  border-radius: var(--jp-radius-sm);
+}
+
+// -----------------------------------------------------------------------------
+// Below md the matrix stops being a matrix.
+//
+// A campus column per campus cannot be read on a 375px screen, and scrolling
+// sideways through eight of them is worse than useless. The table already
+// scrolls inside .table-wrap, so the fix here is to let the person cell keep
+// its width and the campus columns shrink to the tick itself — the header text
+// is gone, but the row order is unchanged and the tick is still where the
+// finger goes.
+// -----------------------------------------------------------------------------
+@include m.down(md) {
+  .team__col-campus {
+    width: 3rem;
+    font-size: 0.625rem;
+  }
+
+  .team__meta {
+    max-width: 12rem;
+  }
+}

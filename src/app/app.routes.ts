@@ -151,7 +151,19 @@ export const routes: Routes = [
       },
       { path: 'teacher-search', loadComponent: comingSoon, data: { title: 'Find teachers' } },
       { path: 'offers', loadComponent: comingSoon, data: { title: 'Offers' } },
-      { path: 'users', loadComponent: comingSoon, data: { title: 'Team' } },
+      {
+        /*
+          The seeded menu row SCHOOL_USERS points at /users and is gated on
+          USER.MANAGE, so only an owner sees it in the navigation. The route
+          itself is NOT permission-guarded: anybody on the team may look at who
+          their colleagues are, and the screen renders read-only for them. The
+          server refuses every write without USER.MANAGE regardless.
+        */
+        path: 'users',
+        loadComponent: () =>
+          import('./features/school/team/team.component').then((m) => m.TeamComponent),
+        data: { title: 'Team' },
+      },
       { path: 'notifications', loadComponent: comingSoon, data: { title: 'Notifications' } },
     ],
   },
