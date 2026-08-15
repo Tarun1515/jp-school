@@ -1,167 +1,219 @@
 <div class="page enter">
-  <header class="page__header">
-    <div class="page__heading">
-      <h1 class="page__title">Greenwood Public School</h1>
-      <!-- Counts derive from the same source as the panels below, so the
-           header cannot claim three jobs while the list shows eight. -->
-      <p class="page__description">
-        {{ jobs().length }} jobs open. {{ needsReply() }} applications have been
-        waiting on you for more than a week.
-      </p>
-    </div>
+  @if (loading()) {
+    <header class="page__header">
+      <div class="page__heading">
+        <span class="skeleton" style="width: 14rem; height: 1.75rem"></span>
+      </div>
+    </header>
 
-    <div class="page__actions">
-      <a class="btn" routerLink="/school/teacher-search">Find teachers</a>
-      <button type="button" class="btn btn--primary">Post a job</button>
-    </div>
-  </header>
-
-  <div class="stat-grid" style="--jp-enter-index: 1">
-    <!--
-      The first tile is the only one with a margin rule, because it is the only
-      one that is a call to action. Making every tile shout is the same as
-      making none of them shout.
-    -->
-    <a class="stat stat--link card--marked" routerLink="/school/applicants"
-       style="--jp-card-rule: var(--jp-danger)">
-      <span class="stat__label">Needs your reply</span>
-      <span class="stat__value">{{ needsReply() }}</span>
-      <span class="stat__meta">Waiting more than 7 days</span>
-    </a>
-
-    <div class="stat">
-      <span class="stat__label">Applicants</span>
-      <span class="stat__value">{{ totalApplicants }}</span>
-      <span class="stat__meta">Across {{ jobs().length }} open jobs</span>
-    </div>
-
-    <div class="stat">
-      <span class="stat__label">At interview</span>
-      <span class="stat__value">{{ interviews() }}</span>
-      <span class="stat__meta">Scheduled this week</span>
-    </div>
-
-    <div class="stat">
-      <span class="stat__label">Hired</span>
-      <span class="stat__value">{{ hired() }}</span>
-      <span class="stat__meta">This academic year</span>
-    </div>
-  </div>
-
-  <div class="dash-grid" style="--jp-enter-index: 2">
-    <!--
-      The funnel. The roll at rest: same seven stages, counted across every
-      application rather than tracked for one. The wall is visible without
-      reading a number.
-    -->
-    <section class="card">
-      <div class="card__header">
-        <div>
-          <h2 class="card__title">Where everyone is</h2>
-          <p class="card__subtitle">Open applications by stage</p>
+    <div class="tiles">
+      @for (tile of skeletonTiles; track tile) {
+        <div class="card">
+          <div class="card__body">
+            <span class="skeleton" style="width: 45%; height: 0.75rem"></span>
+            <span class="skeleton" style="width: 75%; margin-top: 0.75rem"></span>
+          </div>
         </div>
-      </div>
-
-      <div class="card__body">
-        <ol class="funnel">
-          @for (entry of funnel(); track entry.label) {
-            <li class="funnel__row">
-              <span class="funnel__label">{{ entry.label }}</span>
-              <span class="funnel__track">
-                <span
-                  class="funnel__bar"
-                  [style.width.%]="(entry.count / funnelPeak()) * 100"
-                ></span>
-              </span>
-              <span class="funnel__count">{{ entry.count }}</span>
-            </li>
-          }
-        </ol>
-      </div>
-
-      <!--
-        The funnel counts OPEN applications only, so its numbers do not add up
-        to the 50 in the stat tile above. Saying where the difference went is
-        the honest way to close the panel — and it happens to be the line that
-        stops the card ending in whitespace.
-      -->
-      <div class="card__footer">
-        <span class="text-helper">{{ openTotal() }} open</span>
-        <span class="text-helper">{{ closedTotal() }} not proceeding</span>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="card__header">
-        <div>
-          <h2 class="card__title">Latest applications</h2>
-          <p class="card__subtitle">Newest first</p>
-        </div>
-
-        <a class="btn btn--sm" routerLink="/school/applicants">See all</a>
-      </div>
-
-      <div class="card__body card__body--flush card__body--fill">
-        <ul class="entries">
-          @for (applicant of recent(); track applicant.applicationId) {
-            <li class="entries__row">
-              <span class="entries__main">
-                <span class="entries__name">{{ applicant.name }}</span>
-                <span class="entries__meta">
-                  <span class="text-mono">{{ applicant.grade }}</span>
-                  · {{ applicant.subject }} ·
-                  {{ applicant.experience }} {{ applicant.experience === 1 ? 'year' : 'years' }}
-                </span>
-              </span>
-
-              <span class="entries__side">
-                <ui-roll [stages]="stages" [current]="applicant.stage" size="xs" />
-                <span class="entries__date text-mono">{{ applicant.appliedOn | date: 'd MMM' }}</span>
-              </span>
-            </li>
-          }
-        </ul>
-      </div>
-    </section>
-  </div>
-
-  <!--
-    Open jobs. The third question, after "what needs me" and "where is
-    everyone": what are we actually hiring for. This is the content that belongs
-    in the lower half of the page — the alternative was stretching two panels to
-    cover the space, which fills a viewport without answering anything.
-  -->
-  <section class="card" style="--jp-enter-index: 3">
-    <div class="card__header">
-      <div>
-        <h2 class="card__title">Open jobs</h2>
-        <p class="card__subtitle">Sorted by what is waiting on you</p>
-      </div>
-
-      <a class="btn btn--sm" routerLink="/school/jobs">Manage jobs</a>
+      }
     </div>
+  } @else if (loadFailed()) {
+    <div class="card">
+      <div class="card__body text-center">
+        <p class="text-section-title">We could not load your school</p>
+        <p class="text-helper">
+          Nothing has changed — this is usually a connection that dropped.
+        </p>
+        <ui-button variant="primary" (click)="load()">Try again</ui-button>
+      </div>
+    </div>
+  } @else if (data(); as school) {
+    <header class="page__header">
+      <div class="page__heading">
+        <h1 class="page__title">{{ school.schoolName }}</h1>
 
-    <div class="card__body card__body--flush">
-      <ul class="entries">
-        @for (job of jobs(); track job.role) {
-          <li class="entries__row" [class.entries__row--attention]="job.needsReply > 0">
-            <span class="entries__main">
-              <span class="entries__name">{{ job.role }}</span>
-              <span class="entries__meta">{{ job.subject }}</span>
-            </span>
+        <p class="page__description">
+          @if (school.isVerified) {
+            Verified by us. Teachers can see your school and apply to your jobs.
+          } @else {
+            Your school is still being verified. Everything here works while you
+            wait — we will email you when it is done.
+          }
+        </p>
+      </div>
 
-            <span class="entries__side">
-              @if (job.needsReply > 0) {
-                <span class="badge badge--danger">{{ job.needsReply }} waiting</span>
-              }
-
-              <span class="entries__count text-mono">
-                {{ job.applicants }} {{ job.applicants === 1 ? 'applicant' : 'applicants' }}
-              </span>
-            </span>
-          </li>
+      <div class="page__actions">
+        @if (school.isSuspended) {
+          <ui-badge tone="danger">Suspended</ui-badge>
+        } @else if (school.isVerified) {
+          <ui-badge tone="success">Verified</ui-badge>
+        } @else {
+          <ui-badge tone="warning">Being verified</ui-badge>
         }
-      </ul>
+      </div>
+    </header>
+
+    <!--====================================================================
+      WHAT ACTUALLY EXISTS
+
+      Three facts, each of them read from a real endpoint. Nothing here is
+      computed from a fixture, which is the whole difference between this
+      screen and the one it replaced.
+    =====================================================================-->
+    <div class="tiles" style="--jp-enter-index: 1">
+      <!-- CAMPUS -->
+      <section class="card tile">
+        <div class="card__body">
+          <p class="tile__label">
+            @if (isMultiCampus() && school.branchCount > 1) {
+              Head office
+            } @else {
+              Your campus
+            }
+          </p>
+
+          @if (school.headOffice; as head) {
+            <p class="tile__value">{{ head.branchName }}</p>
+            <p class="tile__meta">{{ head.location ?? 'Address not added yet' }}</p>
+          } @else {
+            <!--
+              ⚠️ Every school has a head office by construction — provisioning
+              creates one and USP_DeleteBranch refuses to remove it (2.51). If
+              this ever renders, something upstream is wrong and saying so beats
+              an empty tile.
+            -->
+            <p class="tile__value">Not set up</p>
+            <p class="tile__meta">
+              Your school should have a head office. Contact us and quote your
+              school name.
+            </p>
+          }
+
+          @if (isMultiCampus() && school.branchCount > 1) {
+            <a class="tile__link" routerLink="/branches">
+              All {{ school.branchCount }} campuses
+            </a>
+          }
+        </div>
+      </section>
+
+      <!-- PLAN -->
+      <section class="card tile">
+        <div class="card__body">
+          <p class="tile__label">Your plan</p>
+          <p class="tile__value">{{ planLine() }}</p>
+
+          @if (school.plan.hasSubscription) {
+            <p class="tile__meta">
+              @if (school.plan.endsOnUtc) {
+                Runs until {{ school.plan.endsOnUtc | date: 'd MMM y' }}
+              } @else {
+                Does not expire
+              }
+            </p>
+          } @else {
+            <p class="tile__meta">
+              Every account should have one. Contact us and we will sort it out.
+            </p>
+          }
+        </div>
+      </section>
+
+      <!-- TEAM -->
+      <section class="card tile">
+        <div class="card__body">
+          <p class="tile__label">Your team</p>
+          <p class="tile__value">
+            {{ school.teamMemberCount }}
+            {{ school.teamMemberCount === 1 ? 'person' : 'people' }}
+          </p>
+
+          @if (notArrived() > 0) {
+            <p class="tile__meta">{{ notArrived() }} still to set a password</p>
+          } @else {
+            <p class="tile__meta">Everyone has signed in at least once</p>
+          }
+
+          <a class="tile__link" routerLink="/users">Manage the team</a>
+        </div>
+      </section>
     </div>
-  </section>
+
+    <!-- THE TEAM PREVIEW -->
+    @if (school.team.length > 0) {
+      <section class="card" style="--jp-enter-index: 2">
+        <div class="card__header">
+          <div>
+            <h2 class="card__title">Who is on this account</h2>
+            <p class="card__subtitle">
+              Everyone here can see your jobs and the people who apply to them.
+            </p>
+          </div>
+        </div>
+
+        <div class="card__body">
+          <ul class="people">
+            @for (member of school.team; track member.userUid) {
+              <li class="people__row">
+                <span class="people__name">
+                  {{ displayName(member) }}
+                  @if (member.isOwner) {
+                    <span class="people__tag">owner</span>
+                  }
+                </span>
+
+                <span class="people__role">{{ member.roleName }}</span>
+
+                @if (!member.hasArrived) {
+                  <ui-badge tone="warning" size="sm">Invited</ui-badge>
+                }
+              </li>
+            }
+          </ul>
+        </div>
+
+        @if (school.teamMemberCount > school.team.length) {
+          <div class="card__footer">
+            <a class="btn btn--sm" routerLink="/users">
+              See all {{ school.teamMemberCount }}
+            </a>
+          </div>
+        }
+      </section>
+    }
+
+    <!--====================================================================
+      🔴 WHAT DOES NOT EXIST YET — SAID PLAINLY
+
+      No counts. No rows. No funnel. t_app_jobs and t_app_applications arrive
+      in Phases 4 and 5, and a zero here would be a measurement of something
+      that cannot be measured.
+    =====================================================================-->
+    <div class="tiles tiles--wide" style="--jp-enter-index: 3">
+      <section class="card">
+        <div class="card__body">
+          <ui-empty-state
+            icon="📣"
+            title="Jobs"
+            message="Post a vacancy at any of your campuses, and teachers who match it will see it."
+            actionLabel="Post a job"
+            [actionDisabled]="true"
+            note="Job posting arrives in a coming release."
+          />
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card__body">
+          <ui-empty-state
+            icon="🧑‍🏫"
+            title="Applicants"
+            message="Everyone who applies to your jobs, with where each of them has got to."
+            actionLabel="Review applicants"
+            [actionDisabled]="true"
+            note="Applications arrive after job posting."
+          />
+        </div>
+      </section>
+    </div>
+  }
 </div>

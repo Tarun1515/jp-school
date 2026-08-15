@@ -1,119 +1,111 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { APPLICATION_STAGES, UiRollComponent } from 'jp-shared/ui';
-import { SAMPLE_APPLICANTS } from '../applicants/applicant.data';
+import { UiBadgeComponent, UiButtonComponent, UiEmptyStateComponent } from 'jp-shared/ui';
+
+import { DashboardService, SchoolDashboard } from '../../../core/dashboard.service';
 
 /**
- * School dashboard.
+ * The school dashboard.
  *
- * Answers the three questions a head of HR opens the product to ask, in the
- * order they ask them: what needs me today, where is everyone stuck, and who
- * came in overnight.
+ * ----------------------------------------------------------------------------
+ * 🔴 THIS SCREEN USED TO BE A MOCKUP, AND IT WAS THE MOST CONVINCING ONE
+ * ----------------------------------------------------------------------------
+ * Every figure on it — 50 applicants, the funnel, "latest applications", open
+ * jobs — was computed from `applicants/applicant.data.ts`. No HTTP call was
+ * made at all. It was also the screen that looked the most finished, which is
+ * the dangerous combination in front of a client (G6).
  *
- * The funnel tile is the roll at rest — the same seven stages, but counted
- * across every application rather than tracked for one. It is the clearest
- * demonstration of why the roll earns its place: the wall is visible without
- * reading a single number.
+ * What replaced it shows ONLY what exists: the school, its head office, its
+ * plan, its team. Jobs and applicants are empty states that say what the
+ * section will be.
  *
- * ⚠️ Figures come from the applicants fixture. JP.App.Api is Phase 2.
+ * ----------------------------------------------------------------------------
+ * ⚠️ NO ZERO, EITHER
+ * ----------------------------------------------------------------------------
+ * "0 open jobs" is not the honest version of a mockup — it is a measurement,
+ * and there is nothing to measure: t_app_jobs does not exist until Phase 4. A
+ * zero would be indistinguishable from a school that has posted nothing, and
+ * the day the table lands nobody would know which screens had been lying.
+ *
+ * So the areas carry a disabled action and one line about when they arrive.
+ * That is the ONE place in this product where a disabled control is right:
+ * "not yet" is a fact about the product, where "not allowed" would be a fact
+ * about the person and gets the other treatment (see UiEmptyStateComponent).
  */
 @Component({
   selector: 'app-school-dashboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DatePipe, UiRollComponent],
+  imports: [RouterLink, DatePipe, UiBadgeComponent, UiButtonComponent, UiEmptyStateComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })
 export class SchoolDashboardComponent {
-  protected readonly stages = APPLICATION_STAGES;
+  private readonly dashboards = inject(DashboardService);
 
-  protected readonly needsReply = computed(
-    () => SAMPLE_APPLICANTS.filter((a) => !a.closed && a.stage <= 2 && a.waitingDays >= 7).length,
-  );
+  protected readonly loading = signal(true);
+  protected readonly loadFailed = signal(false);
+  protected readonly data = signal<SchoolDashboard | null>(null);
 
-  protected readonly totalApplicants = SAMPLE_APPLICANTS.length;
+  protected readonly isMultiCampus = computed(() => this.data()?.groupType !== 1);
 
-  protected readonly interviews = computed(
-    () => SAMPLE_APPLICANTS.filter((a) => !a.closed && a.stage === 4).length,
-  );
-
-  protected readonly hired = computed(
-    () => SAMPLE_APPLICANTS.filter((a) => a.stage >= 7).length,
-  );
-
-  /** How many applications sit at each stage. The funnel, counted. */
-  protected readonly funnel = computed(() =>
-    APPLICATION_STAGES.map((stage, index) => {
-      const count = SAMPLE_APPLICANTS.filter(
-        (a) => !a.closed && a.stage === index + 1,
-      ).length;
-
-      return {
-        label: stage.label,
-        count,
-        // Widths are relative to the busiest stage, not to the total: with a
-        // realistic funnel the total-relative version leaves every bar after
-        // the second one invisible.
-        share: count,
-      };
-    }),
-  );
-
-  protected readonly funnelPeak = computed(() =>
-    Math.max(1, ...this.funnel().map((entry) => entry.count)),
+  /** How many colleagues have been invited but have never signed in (2.58). */
+  protected readonly notArrived = computed(
+    () => this.data()?.team.filter((m) => !m.hasArrived).length ?? 0,
   );
 
   /**
-   * The funnel counts open applications only, so its stages do not sum to the
-   * total in the stat tile. Both numbers are stated rather than leaving the
-   * reader to notice the gap and distrust one of them.
-   */
-  protected readonly openTotal = computed(() =>
-    this.funnel().reduce((sum, entry) => sum + entry.count, 0),
-  );
-
-  protected readonly closedTotal = computed(
-    () => SAMPLE_APPLICANTS.filter((a) => a.closed).length,
-  );
-
-  /** The most recent, for the "came in overnight" question. */
-  protected readonly recent = computed(() =>
-    [...SAMPLE_APPLICANTS]
-      .sort((a, b) => b.appliedOn.localeCompare(a.appliedOn))
-      .slice(0, 7),
-  );
-
-  /**
-   * The open jobs, derived from what people have actually applied to.
+   * What the plan tile says.
    *
-   * Added because the dashboard ended two panels up and left the bottom 40% of
-   * a 1440px viewport blank. An empty lower half reads as a page that is not
-   * finished, and the honest fix is the content that belongs there rather than
-   * stretching two panels to cover it: after "what needs me" and "where is
-   * everyone", the next question is "what are we actually hiring for".
+   * ⚠️ Three states, and the third is the one worth having: an account with no
+   * subscription row. Provisioning is supposed to make one for everybody, and
+   * 3B's repair left the possibility of an account without. Saying so is more
+   * useful than a blank space, and far more useful than pretending it is free.
    */
-  protected readonly jobs = computed(() => {
-    const byRole = new Map<string, { applicants: number; needsReply: number; subject: string }>();
+  protected readonly planLine = computed(() => {
+    const plan = this.data()?.plan;
 
-    for (const applicant of SAMPLE_APPLICANTS) {
-      const entry = byRole.get(applicant.role) ?? {
-        applicants: 0,
-        needsReply: 0,
-        subject: applicant.subject,
-      };
+    if (!plan?.hasSubscription) return 'No plan on file';
+    if (!plan.isActive) return `${plan.planName ?? 'Your plan'} — not active`;
 
-      entry.applicants += 1;
-
-      if (!applicant.closed && applicant.stage <= 2 && applicant.waitingDays >= 7) {
-        entry.needsReply += 1;
-      }
-
-      byRole.set(applicant.role, entry);
-    }
-
-    return [...byRole.entries()]
-      .map(([role, entry]) => ({ role, ...entry }))
-      .sort((a, b) => b.needsReply - a.needsReply || b.applicants - a.applicants);
+    return plan.planName ?? 'Your plan';
   });
+
+  protected readonly planTone = computed<'success' | 'warning' | 'neutral'>(() => {
+    const plan = this.data()?.plan;
+
+    if (!plan?.hasSubscription) return 'warning';
+
+    return plan.isActive ? 'success' : 'warning';
+  });
+
+  constructor() {
+    this.load();
+  }
+
+  protected load(): void {
+    this.loading.set(true);
+    this.loadFailed.set(false);
+
+    this.dashboards.getSchool().subscribe({
+      next: (data) => {
+        this.data.set(data);
+        this.loading.set(false);
+      },
+      error: () => {
+        // The interceptor has already said what went wrong. Clearing the data
+        // matters more: a dashboard showing yesterday's figures under a failed
+        // refresh is one somebody makes a decision from.
+        this.data.set(null);
+        this.loadFailed.set(true);
+        this.loading.set(false);
+      },
+    });
+  }
+
+  protected displayName(member: { fullName: string | null; email: string }): string {
+    return member.fullName?.trim() || member.email;
+  }
+
+  protected readonly skeletonTiles = [0, 1, 2];
 }

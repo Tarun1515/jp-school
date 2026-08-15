@@ -173,13 +173,24 @@ export const routes: Routes = [
         data: { title: 'Campuses' },
       },
       { path: 'jobs', loadComponent: comingSoon, data: { title: 'Jobs' } },
-      {
-        path: 'applicants',
-        loadComponent: () =>
-          import('./features/school/applicants/applicants.component').then(
-            (m) => m.ApplicantsComponent,
-          ),
-      },
+
+      /*
+        🔴 /applicants HAS NO ROUTE — removed in 3I.
+
+        It was a static mockup: fifty rows from a fixture file, no HTTP call,
+        and one of the two screens that looked the most finished (G6). The
+        component is kept for its design under `_design-reference/applicants/`
+        and comes back in Phase 5, when there are applications to list.
+
+        Its menu row is hidden too (SCHOOL_APPLICANTS, IsMenuVisible = 0) —
+        menus are data (2.37), so a route removed here without the seed change
+        would leave every school a sidebar entry that 404s.
+
+        ⚠️ Deliberately NOT a `comingSoon` placeholder. That would be a third
+        state — neither the real screen nor honestly absent — and the dashboard
+        already says what this section will be and when.
+      */
+
       { path: 'teacher-search', loadComponent: comingSoon, data: { title: 'Find teachers' } },
       { path: 'offers', loadComponent: comingSoon, data: { title: 'Offers' } },
       {
