@@ -66,41 +66,6 @@
   color: var(--jp-text-muted);
 }
 
-// -----------------------------------------------------------------------------
-// SAVE STATE
-// -----------------------------------------------------------------------------
-.save-note {
-  font-size: var(--jp-font-size-xs);
-  white-space: nowrap;
-}
-
-.save-note--ok { color: var(--jp-success-text); }
-
-// The conflict. It takes the whole footer width and sits above the button,
-// because it is not a hint about the save — it is the reason the save did not
-// happen.
-.conflict {
-  flex: 1 0 100%;
-  margin: 0 0 v.$space-3;
-  padding: v.$space-3 v.$space-4;
-  font-size: var(--jp-font-size-sm);
-  line-height: var(--jp-line-height-snug);
-  color: var(--jp-text);
-  background: var(--jp-warning-surface, var(--jp-surface-alt));
-  border-left: 3px solid var(--jp-warning);
-  border-radius: var(--jp-radius-sm);
-
-  .btn { margin-left: v.$space-2; }
-}
-
-.card__footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: v.$space-3;
-  justify-content: flex-end;
-}
-
 .fieldset {
   padding: 0;
   margin: v.$space-5 0 0;
@@ -113,16 +78,6 @@
   font-size: var(--jp-font-size-sm);
   font-weight: var(--jp-font-weight-semibold);
   margin-bottom: v.$space-2;
-}
-
-.note {
-  margin-top: v.$space-3;
-  padding: v.$space-3 v.$space-4;
-  font-size: var(--jp-font-size-sm);
-  line-height: var(--jp-line-height-snug);
-  color: var(--jp-text-muted);
-  background: var(--jp-surface-alt);
-  border-radius: var(--jp-radius-sm);
 }
 
 // -----------------------------------------------------------------------------
@@ -254,23 +209,12 @@
   color: var(--jp-danger-text);
 }
 
-.empty {
-  padding: v.$space-8 v.$space-4;
-  text-align: center;
-}
-
 // -----------------------------------------------------------------------------
 // On a phone the page is a single column of cards, and the footer's buttons go
 // full width — a right-aligned button at 375px is a small target in the corner
 // somebody's thumb reaches last.
 // -----------------------------------------------------------------------------
 @include m.down(md) {
-  .card__footer {
-    justify-content: stretch;
-
-    ui-button { flex: 1 0 100%; }
-  }
-
   .logo {
     flex-direction: column;
     align-items: flex-start;
