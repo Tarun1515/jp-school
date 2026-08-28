@@ -1,0 +1,135 @@
+@use 'variables' as v;
+@use 'mixins' as m;
+
+// -----------------------------------------------------------------------------
+// JOB FORM
+//
+// Two sections — what the role IS, and what its TERMS are — because that is the
+// same line the server draws when it locks fields on a published job. The form
+// and the rule have the same shape, so the lock reads as structure rather than
+// as an arbitrary set of greyed boxes.
+// -----------------------------------------------------------------------------
+
+.page__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: v.$space-4;
+  margin-bottom: v.$space-4;
+}
+
+.page__subtitle {
+  max-width: 48ch;
+  margin-top: v.$space-1;
+  color: var(--jp-text-muted);
+  font-size: var(--jp-font-size-sm);
+}
+
+.state {
+  padding: v.$space-6;
+  color: var(--jp-text-muted);
+  text-align: center;
+}
+
+/*
+  🔴 The locked banner. Warning-toned, not danger — nothing is wrong, and a red
+  bar would read as an error on a form the person opened deliberately.
+*/
+.banner {
+  padding: v.$space-3 v.$space-4;
+  margin-bottom: v.$space-4;
+  border-radius: var(--jp-radius-lg);
+  font-size: var(--jp-font-size-sm);
+  line-height: var(--jp-line-height-relaxed);
+
+  &--locked {
+    background: var(--jp-warning-soft);
+    border: 1px solid var(--jp-warning);
+    color: var(--jp-text);
+  }
+}
+
+.form { display: grid; gap: v.$space-4; }
+
+.section__title {
+  margin-bottom: v.$space-1;
+  font-size: var(--jp-font-size-md);
+  font-weight: var(--jp-font-weight-semibold);
+}
+
+.section__note {
+  margin-bottom: v.$space-4;
+  color: var(--jp-text-muted);
+  font-size: var(--jp-font-size-sm);
+}
+
+.field { margin-bottom: v.$space-4; }
+
+.field__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: v.$space-4;
+}
+
+.field__label {
+  display: flex;
+  align-items: center;
+  gap: v.$space-2;
+  margin-bottom: v.$space-1;
+  font-size: var(--jp-font-size-sm);
+  font-weight: var(--jp-font-weight-medium);
+}
+
+/*
+  The per-field lock marker. Small, and beside the label rather than replacing
+  it — the field still says what the job IS, which is worth reading even when it
+  cannot be changed.
+*/
+.field__lock {
+  padding: 1px v.$space-2;
+  background: var(--jp-warning-soft);
+  border-radius: var(--jp-radius-sm);
+  color: var(--jp-warning-text);
+  font-size: var(--jp-font-size-xs);
+  font-weight: var(--jp-font-weight-normal);
+  text-transform: lowercase;
+}
+
+// 🔴 A message ON the field, not one toast for the whole form. The server
+// returns a distinct code per rule precisely so this is possible (2.12).
+.field__error {
+  margin-top: v.$space-1;
+  color: var(--jp-danger);
+  font-size: var(--jp-font-size-xs);
+}
+
+.field__help {
+  margin-top: v.$space-1;
+  color: var(--jp-text-muted);
+  font-size: var(--jp-font-size-xs);
+}
+
+.form-control--error {
+  border-color: var(--jp-danger);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: v.$space-2;
+  margin-bottom: v.$space-4;
+  font-size: var(--jp-font-size-sm);
+  cursor: pointer;
+}
+
+.form__actions {
+  display: flex;
+  gap: v.$space-3;
+  justify-content: flex-end;
+}
+
+@media (max-width: 40rem) {
+  .page__head { flex-direction: column; align-items: stretch; }
+  .field__row { grid-template-columns: 1fr; }
+  .form__actions { flex-direction: column-reverse; }
+}

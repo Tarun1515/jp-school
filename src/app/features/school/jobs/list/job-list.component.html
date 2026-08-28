@@ -1,0 +1,142 @@
+<header class="page__head">
+  <div>
+    <h1 class="page__title">Jobs</h1>
+    <p class="page__subtitle">
+      Every vacancy you have posted, across all your campuses.
+    </p>
+  </div>
+
+  <!--
+    🔴 NOT ALLOWED MEANS ABSENT. A Viewer gets no "New job" button at all —
+    not a greyed one, which would read as "try again later".
+  -->
+  @if (canCreate()) {
+    <a class="btn btn--primary" routerLink="/jobs/new">New job</a>
+  }
+</header>
+
+@if (readOnly()) {
+  <!-- One honest line, rather than a screen that looks broken. -->
+  <p class="banner banner--info" role="status">
+    You can read everything here. Posting and editing jobs is done by your
+    school's HR and owner accounts.
+  </p>
+}
+
+<div class="tabs" role="tablist">
+  @for (f of FILTERS; track f.label) {
+    <button
+      type="button"
+      role="tab"
+      class="tabs__tab"
+      [class.tabs__tab--active]="filter() === f.id"
+      [attr.aria-selected]="filter() === f.id"
+      (click)="setFilter(f.id)"
+    >
+      {{ f.label }}
+    </button>
+  }
+</div>
+
+@if (loading()) {
+  <p class="state">Loading …</p>
+} @else if (failed()) {
+  <p class="state state--error">Your jobs could not be loaded. Nothing has been changed.</p>
+} @else if (rows().length === 0) {
+  <ui-empty-state
+    icon="📣"
+    title="No jobs here yet"
+    [message]="filter() === null
+      ? 'Post a vacancy at any of your campuses, and teachers who match it will see it.'
+      : 'Nothing in this list right now. Try another tab.'"
+    [actionLabel]="canCreate() && filter() === null ? 'Post a job' : ''"
+    actionLink="/jobs/new"
+  />
+} @else {
+  <div class="table__scroll">
+    <table class="table">
+      <thead>
+        <tr>
+          <th scope="col">Job</th>
+          <th scope="col">Campus</th>
+          <th scope="col">Status</th>
+          <th scope="col">Closes</th>
+          <th scope="col">Vacancies</th>
+          <th scope="col"><span class="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track row.jobId) {
+          <tr>
+            <th scope="row" class="table__title">
+              <span class="job__title">{{ row.jobTitle }}</span>
+              @if (row.publishedOn) {
+                <span class="job__meta">Published {{ row.publishedOn | date: 'd MMM yyyy' }}</span>
+              }
+            </th>
+
+            <td>{{ row.branchName }}</td>
+
+            <td>
+              <ui-badge [tone]="badgeTone(row)">{{ row.statusName }}</ui-badge>
+
+              <!--
+                🔴 THE DERIVED STATE, SAID QUIETLY.
+
+                The row in the database still says Active; only the closing date
+                has passed. A second badge of equal weight would suggest two
+                statuses to reconcile. This is one muted line that explains the
+                one status above it.
+              -->
+              @if (isDerivedExpired(row)) {
+                <span
+                  class="job__derived"
+                  title="The posting is still live in the database. It reads as Expired because its closing date has passed — no process changed it."
+                >
+                  closing date passed
+                </span>
+              }
+            </td>
+
+            <td>
+              {{ row.lastDateToApply ? (row.lastDateToApply | date: 'd MMM yyyy') : '—' }}
+            </td>
+
+            <td class="table__num">{{ row.noOfVacancies }}</td>
+
+            <td class="table__actions">
+              @if (canEdit()) {
+                <button type="button" class="btn btn--sm btn--ghost" (click)="edit(row)">
+                  {{ row.storedStatusId === STATUS.closed ? 'View' : 'Edit' }}
+                </button>
+              }
+
+              <!-- Absent, not disabled, when the permission is missing. -->
+              @if (canPublishRow(row)) {
+                <button
+                  type="button"
+                  class="btn btn--sm btn--primary"
+                  [disabled]="busy() === row.jobId"
+                  (click)="publish(row)"
+                >
+                  Publish
+                </button>
+              }
+
+              @if (canCloseRow(row)) {
+                <button
+                  type="button"
+                  class="btn btn--sm btn--ghost"
+                  [disabled]="busy() === row.jobId"
+                  (click)="closeJob(row)"
+                >
+                  Close
+                </button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

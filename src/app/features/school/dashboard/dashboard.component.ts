@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { UiBadgeComponent, UiButtonComponent, UiEmptyStateComponent } from 'jp-shared/ui';
 
 import { DashboardService, SchoolDashboard } from '../../../core/dashboard.service';
+import { JobService, JobStats } from '../../../core/job.service';
 
 /**
  * The school dashboard.
@@ -17,21 +18,26 @@ import { DashboardService, SchoolDashboard } from '../../../core/dashboard.servi
  * the dangerous combination in front of a client (G6).
  *
  * What replaced it shows ONLY what exists: the school, its head office, its
- * plan, its team. Jobs and applicants are empty states that say what the
- * section will be.
+ * plan, its team.
  *
  * ----------------------------------------------------------------------------
- * ⚠️ NO ZERO, EITHER
+ * 🔴 PHASE 4B: THE JOBS AREA IS NOW REAL. APPLICANTS IS STILL NOT.
  * ----------------------------------------------------------------------------
- * "0 open jobs" is not the honest version of a mockup — it is a measurement,
- * and there is nothing to measure: t_app_jobs does not exist until Phase 4. A
- * zero would be indistinguishable from a school that has posted nothing, and
- * the day the table lands nobody would know which screens had been lying.
+ * 3I could not show a job count because t_app_jobs did not exist, and a zero
+ * would have been a measurement of something unmeasurable — indistinguishable
+ * from a school that had posted nothing.
  *
- * So the areas carry a disabled action and one line about when they arrive.
- * That is the ONE place in this product where a disabled control is right:
- * "not yet" is a fact about the product, where "not allowed" would be a fact
- * about the person and gets the other treatment (see UiEmptyStateComponent).
+ * The table exists now, so the counts are a real measurement and a zero is a
+ * real zero. The empty state changed its words to match: "You have not posted a
+ * vacancy yet" is a fact about this school, where the old copy — "arrives in a
+ * coming release" — was a fact about the product.
+ *
+ * ⚠️ THE APPLICANTS AREA IS UNTOUCHED, and that is deliberate.
+ * t_app_applications is Phase 5. Its disabled action and "arrives after job
+ * posting" note stay exactly as 3I wrote them, because they are still true —
+ * and that is the ONE place a disabled control is right: "not yet" is a fact
+ * about the product, where "not allowed" would be a fact about the person and
+ * gets the other treatment (see UiEmptyStateComponent).
  */
 @Component({
   selector: 'app-school-dashboard',
@@ -42,10 +48,34 @@ import { DashboardService, SchoolDashboard } from '../../../core/dashboard.servi
 })
 export class SchoolDashboardComponent {
   private readonly dashboards = inject(DashboardService);
+  private readonly jobs = inject(JobService);
 
   protected readonly loading = signal(true);
   protected readonly loadFailed = signal(false);
   protected readonly data = signal<SchoolDashboard | null>(null);
+
+  /**
+   * The jobs area's real numbers (Phase 4B).
+   *
+   * ----------------------------------------------------------------------------
+   * 🔴 THE COUNTING HAPPENS ON THE SERVER
+   * ----------------------------------------------------------------------------
+   * `GET /api/jobs/stats` returns the counts and the five most recent already
+   * computed. The alternative — fetching every job and counting here — would
+   * ship hundreds of rows to render four numbers, and would put the definition
+   * of "expired" in the browser, where a machine with a wrong clock could
+   * disagree with the jobs list about which jobs are open.
+   *
+   * Same rule 3I applied to `waitingDays`: the server measures, the screen
+   * displays.
+   *
+   * ⚠️ A SEPARATE call from the dashboard's own, on purpose. The dashboard
+   * endpoint composes school, team and plan; jobs are a different subsystem
+   * with their own permission (JOB.VIEW), and folding them in would mean a
+   * person without it either breaks the whole dashboard or silently gets a
+   * partial one.
+   */
+  protected readonly jobStats = signal<JobStats | null>(null);
 
   protected readonly isMultiCampus = computed(() => this.data()?.groupType !== 1);
 
@@ -100,6 +130,17 @@ export class SchoolDashboardComponent {
         this.loadFailed.set(true);
         this.loading.set(false);
       },
+    });
+
+    /*
+      ⚠️ Its own call, and its own failure. A person who can see the dashboard
+      but not jobs (no JOB.VIEW) gets a 403 here and the rest of the screen is
+      unaffected — the jobs tile simply stays quiet rather than taking the whole
+      page down with it.
+    */
+    this.jobs.stats().subscribe({
+      next: (stats) => this.jobStats.set(stats),
+      error: () => this.jobStats.set(null),
     });
   }
 

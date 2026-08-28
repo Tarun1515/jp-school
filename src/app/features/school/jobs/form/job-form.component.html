@@ -1,0 +1,287 @@
+<header class="page__head">
+  <div>
+    <h1 class="page__title">{{ isEdit() ? 'Edit job' : 'New job' }}</h1>
+    <p class="page__subtitle">
+      A job is saved as a draft. Nobody sees it until you publish it.
+    </p>
+  </div>
+  <a class="btn btn--ghost" routerLink="/jobs">Back to jobs</a>
+</header>
+
+@if (loading()) {
+  <p class="state">Loading …</p>
+} @else {
+  @if (locked()) {
+    <!--
+      🔴 2.62's "not allowed", stated. Not a greyed control with no explanation,
+      and not a hidden one either — the values still matter to read.
+    -->
+    <p class="banner banner--locked" role="status">
+      <strong>This job is published.</strong>
+      The campus, subject, designation, qualification and experience range are
+      locked, because teachers chose to apply on exactly those. Everything else —
+      the title, salary, timings, description and closing date — can still be
+      changed. To change a locked field, close this job and post a new one.
+    </p>
+  }
+
+  <form class="form" (ngSubmit)="save()">
+    <section class="card">
+      <div class="card__body">
+        <h2 class="section__title">The role</h2>
+
+        <div class="field">
+          <label class="field__label" for="jobTitle">Job title</label>
+          <input
+            id="jobTitle"
+            name="jobTitle"
+            class="form-control"
+            [class.form-control--error]="fieldError('jobTitle')"
+            [(ngModel)]="form.jobTitle"
+            placeholder="e.g. PGT Physics"
+            required
+          />
+          @if (fieldError('jobTitle')) {
+            <p class="field__error">{{ fieldError('jobTitle') }}</p>
+          }
+        </div>
+
+        <div class="field__row">
+          <div class="field">
+            <label class="field__label" for="branchId">
+              Campus @if (locked()) { <span class="field__lock">locked</span> }
+            </label>
+            <select
+              id="branchId"
+              name="branchId"
+              class="form-control"
+              [(ngModel)]="form.branchId"
+              [disabled]="locked()"
+            >
+              @for (b of branches(); track b.branchId) {
+                <option [value]="b.branchId">{{ b.branchName }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="subjectId">
+              Primary subject @if (locked()) { <span class="field__lock">locked</span> }
+            </label>
+            <select
+              id="subjectId"
+              name="subjectId"
+              class="form-control"
+              [(ngModel)]="form.subjectId"
+              [disabled]="locked()"
+            >
+              <option [value]="0">Choose a subject</option>
+              @for (s of subjects(); track s.id) {
+                <option [value]="s.id">{{ s.name }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="field__row">
+          <div class="field">
+            <label class="field__label" for="designationId">
+              Designation @if (locked()) { <span class="field__lock">locked</span> }
+            </label>
+            <select
+              id="designationId"
+              name="designationId"
+              class="form-control"
+              [(ngModel)]="form.designationId"
+              [disabled]="locked()"
+            >
+              <option [value]="0">Choose a designation</option>
+              @for (d of designations(); track d.id) {
+                <option [value]="d.id">{{ d.name }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="qualificationId">
+              Minimum qualification @if (locked()) { <span class="field__lock">locked</span> }
+            </label>
+            <select
+              id="qualificationId"
+              name="qualificationId"
+              class="form-control"
+              [(ngModel)]="form.qualificationId"
+              [disabled]="locked()"
+            >
+              <option [ngValue]="null">No specific requirement</option>
+              @for (q of qualifications(); track q.id) {
+                <option [value]="q.id">{{ q.name }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <!--
+          ⚠️ The subject and class-level sets are structural too — they are part
+          of what a teacher matched on — so they lock with the rest.
+        -->
+        <ui-multi-select
+          label="All subjects this job covers"
+          itemNoun="subject"
+          placeholder="Choose the subjects"
+          [options]="subjectOptions()"
+          [ngModel]="form.subjectIds"
+          (ngModelChange)="onSubjectsChange($event)"
+          [disabled]="locked()"
+          name="subjectIds"
+        />
+
+        <ui-multi-select
+          label="Class levels"
+          itemNoun="class level"
+          placeholder="Choose the levels"
+          [options]="classLevelOptions()"
+          [ngModel]="form.classLevelIds"
+          (ngModelChange)="onLevelsChange($event)"
+          [disabled]="locked()"
+          name="classLevelIds"
+        />
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__body">
+        <h2 class="section__title">Terms</h2>
+        <p class="section__note">These can be changed after the job is published.</p>
+
+        <div class="field__row">
+          <div class="field">
+            <label class="field__label" for="noOfVacancies">Vacancies</label>
+            <input
+              id="noOfVacancies"
+              name="noOfVacancies"
+              type="number"
+              min="1"
+              class="form-control"
+              [class.form-control--error]="fieldError('noOfVacancies')"
+              [(ngModel)]="form.noOfVacancies"
+            />
+            @if (fieldError('noOfVacancies')) {
+              <p class="field__error">{{ fieldError('noOfVacancies') }}</p>
+            }
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="lastDateToApply">Applications close on</label>
+            <input
+              id="lastDateToApply"
+              name="lastDateToApply"
+              type="date"
+              class="form-control"
+              [class.form-control--error]="fieldError('lastDateToApply')"
+              [(ngModel)]="form.lastDateToApply"
+            />
+            @if (fieldError('lastDateToApply')) {
+              <p class="field__error">{{ fieldError('lastDateToApply') }}</p>
+            } @else {
+              <p class="field__help">
+                After this date the job stops accepting applications and shows as Expired.
+                You can extend it any time.
+              </p>
+            }
+          </div>
+        </div>
+
+        <div class="field__row">
+          <div class="field">
+            <label class="field__label" for="salaryMin">Salary from (₹ / month)</label>
+            <input
+              id="salaryMin"
+              name="salaryMin"
+              type="number"
+              min="0"
+              class="form-control"
+              [(ngModel)]="form.salaryMin"
+            />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="salaryMax">Salary to (₹ / month)</label>
+            <input
+              id="salaryMax"
+              name="salaryMax"
+              type="number"
+              min="0"
+              class="form-control"
+              [class.form-control--error]="fieldError('salaryMax')"
+              [(ngModel)]="form.salaryMax"
+            />
+            @if (fieldError('salaryMax')) {
+              <p class="field__error">{{ fieldError('salaryMax') }}</p>
+            }
+          </div>
+        </div>
+
+        <label class="check">
+          <input type="checkbox" name="isSalaryNegotiable" [(ngModel)]="form.isSalaryNegotiable" />
+          <span>Salary is negotiable</span>
+        </label>
+
+        <div class="field__row">
+          <div class="field">
+            <label class="field__label" for="minExperienceMonths">
+              Experience from (months) @if (locked()) { <span class="field__lock">locked</span> }
+            </label>
+            <input
+              id="minExperienceMonths"
+              name="minExperienceMonths"
+              type="number"
+              min="0"
+              class="form-control"
+              [(ngModel)]="form.minExperienceMonths"
+              [disabled]="locked()"
+            />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="maxExperienceMonths">
+              Experience to (months) @if (locked()) { <span class="field__lock">locked</span> }
+            </label>
+            <input
+              id="maxExperienceMonths"
+              name="maxExperienceMonths"
+              type="number"
+              min="0"
+              class="form-control"
+              [class.form-control--error]="fieldError('maxExperienceMonths')"
+              [(ngModel)]="form.maxExperienceMonths"
+              [disabled]="locked()"
+            />
+            @if (fieldError('maxExperienceMonths')) {
+              <p class="field__error">{{ fieldError('maxExperienceMonths') }}</p>
+            }
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="jobDescription">About the role</label>
+          <textarea
+            id="jobDescription"
+            name="jobDescription"
+            class="form-control"
+            rows="6"
+            [(ngModel)]="form.jobDescription"
+            placeholder="What the person will teach, who they will work with, anything a teacher would want to know before applying."
+          ></textarea>
+        </div>
+      </div>
+    </section>
+
+    <div class="form__actions">
+      <a class="btn btn--ghost" routerLink="/jobs">Cancel</a>
+      <button type="submit" class="btn btn--primary" [disabled]="saving()">
+        {{ saving() ? 'Saving …' : isEdit() ? 'Save changes' : 'Save draft' }}
+      </button>
+    </div>
+  </form>
+}

@@ -172,7 +172,36 @@ export const routes: Routes = [
           import('./features/school/branches/branches.component').then((m) => m.BranchesComponent),
         data: { title: 'Campuses' },
       },
-      { path: 'jobs', loadComponent: comingSoon, data: { title: 'Jobs' } },
+      /*
+        Phase 4B — jobs.
+
+        ⚠️ 'new' is listed BEFORE ':jobId' so it matches as a literal. Angular
+        takes the first match, and with the order reversed "/jobs/new" would
+        resolve as a job whose id is the string "new".
+
+        No permissionGuard: the SCHOOL_JOBS menu row already carries JOB.VIEW,
+        so a person without it never sees the link — and the API refuses
+        regardless of what the browser drew. Hiding is presentation; the server
+        is the protection.
+      */
+      {
+        path: 'jobs',
+        loadComponent: () =>
+          import('./features/school/jobs/list/job-list.component').then((m) => m.JobListComponent),
+        data: { title: 'Jobs' },
+      },
+      {
+        path: 'jobs/new',
+        loadComponent: () =>
+          import('./features/school/jobs/form/job-form.component').then((m) => m.JobFormComponent),
+        data: { title: 'New job' },
+      },
+      {
+        path: 'jobs/:jobId',
+        loadComponent: () =>
+          import('./features/school/jobs/form/job-form.component').then((m) => m.JobFormComponent),
+        data: { title: 'Edit job' },
+      },
 
       /*
         🔴 /applicants HAS NO ROUTE — removed in 3I.

@@ -182,23 +182,75 @@
     }
 
     <!--====================================================================
-      🔴 WHAT DOES NOT EXIST YET — SAID PLAINLY
+      🔴 JOBS IS REAL NOW. APPLICANTS IS STILL NOT.
 
-      No counts. No rows. No funnel. t_app_jobs and t_app_applications arrive
-      in Phases 4 and 5, and a zero here would be a measurement of something
-      that cannot be measured.
+      Phase 4 built t_app_jobs, so the counts below are a MEASUREMENT — and a
+      school with no jobs shows a real zero, which is a different thing from
+      the placeholder that used to sit here.
+
+      ⚠️ The applicants area underneath is UNCHANGED, deliberately.
+      t_app_applications is Phase 5, and a zero there would still be a number
+      with nothing behind it (2.62). Phase 4B touched the jobs half and left
+      the other byte-identical.
     =====================================================================-->
     <div class="tiles tiles--wide" style="--jp-enter-index: 3">
       <section class="card">
         <div class="card__body">
-          <ui-empty-state
-            icon="📣"
-            title="Jobs"
-            message="Post a vacancy at any of your campuses, and teachers who match it will see it."
-            actionLabel="Post a job"
-            [actionDisabled]="true"
-            note="Job posting arrives in a coming release."
-          />
+          @if (jobStats(); as stats) {
+            @if (stats.totalJobs === 0) {
+              <!--
+                A real zero, and it says so — "none yet" is a measurement, where
+                the old copy ("arrives in a coming release") was a promise.
+              -->
+              <ui-empty-state
+                icon="📣"
+                title="Jobs"
+                message="You have not posted a vacancy yet. Post one at any of your campuses and teachers who match it will see it."
+                actionLabel="Post a job"
+                actionLink="/jobs/new"
+              />
+            } @else {
+              <div class="jobs__head">
+                <h2 class="card__title">Jobs</h2>
+                <a class="link" routerLink="/jobs">See all</a>
+              </div>
+
+              <dl class="jobs__counts">
+                <div class="jobs__count">
+                  <dt>Active</dt>
+                  <dd>{{ stats.activeCount }}</dd>
+                </div>
+                <div class="jobs__count">
+                  <dt>Drafts</dt>
+                  <dd>{{ stats.draftCount }}</dd>
+                </div>
+                <div class="jobs__count">
+                  <dt>Expired</dt>
+                  <dd>{{ stats.expiredCount }}</dd>
+                </div>
+                <div class="jobs__count">
+                  <dt>Closed</dt>
+                  <dd>{{ stats.closedCount }}</dd>
+                </div>
+              </dl>
+
+              <ul class="jobs__recent">
+                @for (job of stats.recent; track job.jobId) {
+                  <li class="jobs__row">
+                    <a class="jobs__link" [routerLink]="['/jobs', job.jobId]">{{ job.jobTitle }}</a>
+                    <span class="jobs__meta">
+                      {{ job.branchName }} · {{ job.statusName }}
+                      @if (job.lastDateToApply) {
+                        · closes {{ job.lastDateToApply | date: 'd MMM' }}
+                      }
+                    </span>
+                  </li>
+                }
+              </ul>
+            }
+          } @else {
+            <p class="jobs__loading">Loading your jobs …</p>
+          }
         </div>
       </section>
 

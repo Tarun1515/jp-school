@@ -1,0 +1,166 @@
+@use 'variables' as v;
+@use 'mixins' as m;
+
+// -----------------------------------------------------------------------------
+// JOB LIST
+//
+// Ruled rows, same grammar as the verification queue and the applicants design
+// reference — one product, one table language (2.38). No colour or size is
+// invented here; every value is a token (2.23).
+// -----------------------------------------------------------------------------
+
+.page__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: v.$space-4;
+  margin-bottom: v.$space-4;
+}
+
+.page__subtitle {
+  max-width: 48ch;
+  margin-top: v.$space-1;
+  color: var(--jp-text-muted);
+  font-size: var(--jp-font-size-sm);
+}
+
+.banner {
+  padding: v.$space-3 v.$space-4;
+  margin-bottom: v.$space-4;
+  border-radius: var(--jp-radius-lg);
+  font-size: var(--jp-font-size-sm);
+
+  &--info {
+    background: var(--jp-info-soft);
+    border: 1px solid var(--jp-info);
+    color: var(--jp-text);
+  }
+}
+
+.tabs {
+  display: flex;
+  gap: v.$space-1;
+  margin-bottom: v.$space-4;
+  border-bottom: 1px solid var(--jp-border);
+  overflow-x: auto;
+}
+
+.tabs__tab {
+  @include m.focus-ring;
+
+  padding: v.$space-2 v.$space-4;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--jp-text-muted);
+  font-size: var(--jp-font-size-sm);
+  font-weight: var(--jp-font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover { color: var(--jp-text); }
+
+  &--active {
+    border-bottom-color: var(--jp-primary);
+    color: var(--jp-text);
+  }
+}
+
+.state {
+  padding: v.$space-6;
+  color: var(--jp-text-muted);
+  text-align: center;
+
+  &--error { color: var(--jp-danger); }
+}
+
+/*
+  The table scrolls inside its own box, and `contain: paint` is what actually
+  keeps the PAGE from scrolling sideways at 375 — overflow-x alone left 70px of
+  document scroll on the admin matrix, and four other candidates did not move
+  it. Same shape of container, same fix.
+*/
+.table__scroll {
+  overflow-x: auto;
+  contain: paint;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-radius-lg);
+  background: var(--jp-surface);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--jp-font-size-sm);
+
+  th,
+  td {
+    padding: v.$space-3;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--jp-border);
+    white-space: nowrap;
+  }
+
+  thead th {
+    background: var(--jp-surface-alt);
+    color: var(--jp-text-muted);
+    font-size: var(--jp-font-size-xs);
+    font-weight: var(--jp-font-weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  tbody tr:last-child th,
+  tbody tr:last-child td { border-bottom: 0; }
+}
+
+.table__title { font-weight: var(--jp-font-weight-normal); min-width: 16rem; }
+.table__num { text-align: right; }
+
+.table__actions {
+  display: flex;
+  gap: v.$space-2;
+  justify-content: flex-end;
+}
+
+.job__title {
+  display: block;
+  color: var(--jp-text);
+  font-weight: var(--jp-font-weight-medium);
+  white-space: normal;
+}
+
+.job__meta {
+  display: block;
+  margin-top: 2px;
+  color: var(--jp-text-muted);
+  font-size: var(--jp-font-size-xs);
+}
+
+/*
+  🔴 The derived-expiry note. MUTED on purpose.
+
+  The badge above it already carries the status. This says why, in the smallest
+  type on the row. A second badge here would read as a competing status rather
+  than an explanation of the one that is there.
+*/
+.job__derived {
+  display: block;
+  margin-top: v.$space-1;
+  color: var(--jp-text-muted);
+  font-size: var(--jp-font-size-xs);
+  font-style: italic;
+  cursor: help;
+}
+
+.sr-only { @include m.visually-hidden; }
+
+@media (max-width: 40rem) {
+  .page__head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .table__actions { justify-content: flex-start; }
+}
