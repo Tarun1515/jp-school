@@ -1,0 +1,333 @@
+@if (loading()) {
+  <p class="table__loading">Loading …</p>
+} @else if (notFound() || !data()) {
+  <!--
+    🔴 ONE SCREEN FOR 404 AND 403.
+
+    An application belonging to another school, or at a campus this user is not
+    bound to, answers 404 — because "you may not see THAT one" confirms it
+    exists (2.6). Two different screens here would rebuild the oracle the API
+    refuses to be.
+  -->
+  <div class="page">
+    <ui-empty-state
+      icon="🔎"
+      title="That application was not found"
+      message="It may have been withdrawn, or it belongs to a job at a campus you do not work on."
+      actionLabel="Back to applicants"
+      actionLink="/applicants"
+    />
+  </div>
+} @else if (data(); as a) {
+  <div class="page">
+    <header class="page__header">
+      <div class="page__heading">
+        <a class="applicant__back" routerLink="/applicants">← Applicants</a>
+
+        <h1 class="page__title">
+          {{ a.teacherName }}
+
+          <!--
+            🔴 A SIGNAL, NOT A GATE (2.9, locked). This application was accepted
+            whether or not the badge is here. It tells the school what has been
+            checked; it never decided who could apply.
+          -->
+          @if (a.isVerified) {
+            <span class="badge badge--verified">Verified</span>
+          }
+        </h1>
+
+        <p class="page__description">
+          Applied for
+          <a [routerLink]="['/applicants']" [queryParams]="{ jobId: a.jobId }">{{ a.jobTitle }}</a>
+          at {{ a.branchName }} on {{ a.appliedOn | date: 'd MMM yyyy' }}.
+        </p>
+      </div>
+
+      <div class="page__actions">
+        @if (isRejected()) {
+          <ui-badge tone="neutral">{{ a.statusName }}</ui-badge>
+        } @else {
+          <ui-badge tone="primary">{{ a.statusName }}</ui-badge>
+        }
+      </div>
+    </header>
+
+    <!-- The stage, full width. Same roll as the list, one size larger. -->
+    @if (!isRejected()) {
+      <div class="card">
+        <div class="card__body">
+          <ui-roll [stages]="stages()" [current]="currentStage()" size="lg" />
+        </div>
+      </div>
+    }
+
+    <div class="applicant__columns">
+      <!--==================================================================
+        LEFT — what they sent
+      ===================================================================-->
+      <div class="applicant__main">
+        <!--
+          🔒 THE CONTACT BLOCK. 2.56, and the centre of gravity of Phase 5.
+
+          `isContactUnlocked` comes from `fn_TeacherContactUnlocked` and nothing
+          else. When it says no, `contactEmail` and `contactMobile` arrive NULL
+          — there is nothing in the response to uncover with devtools, and no
+          CSS is doing the hiding.
+
+          ⚠️ NO PLAN CHECK, NO UNLOCK BUTTON, AND THERE MUST NEVER BE ONE. A
+          subscription buys capability; contact opens on the teacher's own act.
+          This application IS that act.
+        -->
+        <section class="card">
+          <div class="card__header">
+            <h2 class="card__title">Contact</h2>
+          </div>
+
+          <div class="card__body">
+            @if (a.isContactUnlocked) {
+              <dl class="facts">
+                <div class="facts__item">
+                  <dt>Email</dt>
+                  <dd><a [href]="'mailto:' + a.contactEmail">{{ a.contactEmail }}</a></dd>
+                </div>
+
+                @if (a.contactMobile) {
+                  <div class="facts__item">
+                    <dt>Mobile</dt>
+                    <dd><a [href]="'tel:' + a.contactMobile">{{ a.contactMobile }}</a></dd>
+                  </div>
+                }
+              </dl>
+
+              <p class="field__helper">
+                You can see these because this teacher applied to your job.
+              </p>
+            } @else {
+              <!--
+                Reachable only if consent were somehow withdrawn. Kept honest
+                rather than pretending the fields are loading.
+              -->
+              <p class="note">
+                This teacher's contact details are not available.
+              </p>
+            }
+          </div>
+        </section>
+
+        @if (a.coverNote) {
+          <section class="card">
+            <div class="card__header">
+              <h2 class="card__title">Their note</h2>
+            </div>
+            <div class="card__body">
+              <p class="applicant__cover">{{ a.coverNote }}</p>
+            </div>
+          </section>
+        }
+
+        <section class="card">
+          <div class="card__header">
+            <h2 class="card__title">Resume</h2>
+            <p class="card__subtitle">The file as it was when they applied.</p>
+          </div>
+
+          <div class="card__body">
+            @if (!a.hasResume) {
+              <p class="note">No resume was attached to this application.</p>
+            } @else if (canDownloadResume()) {
+              <button type="button" class="btn btn--primary" (click)="openResume()">
+                Open resume
+              </button>
+
+              <!--
+                🔴 Said plainly, because it is the property somebody will
+                otherwise doubt: this is not the teacher's current CV.
+              -->
+              <p class="field__helper">
+                This is the copy attached to this application. If the teacher
+                has replaced their resume since, this is still what you were
+                sent.
+              </p>
+            } @else {
+              <!--
+                🔴 ABSENT, NOT DISABLED. A Viewer will never gain
+                RESUME.DOWNLOAD by waiting or by clicking again, so there is no
+                button to click — the line explains the fact instead (2.62).
+              -->
+              <p class="note">
+                A resume was attached. Opening it needs the resume permission,
+                which your account does not have — a resume carries a teacher's
+                phone number and address.
+              </p>
+            }
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card__header">
+            <h2 class="card__title">Profile</h2>
+          </div>
+
+          <div class="card__body">
+            <dl class="facts">
+              <div class="facts__item">
+                <dt>Designation</dt>
+                <dd>{{ name(designations(), a.teacherDesignationId) }}</dd>
+              </div>
+              <div class="facts__item">
+                <dt>Qualification</dt>
+                <dd>
+                  {{ a.highestQualificationText?.trim()
+                     || name(qualifications(), a.teacherQualificationId) }}
+                </dd>
+              </div>
+              <div class="facts__item">
+                <dt>Experience</dt>
+                <dd>{{ experienceLabel(a.totalExperienceMonths) }}</dd>
+              </div>
+              <div class="facts__item">
+                <dt>Currently at</dt>
+                <dd>{{ a.currentSchool?.trim() || a.lastSchool?.trim() || 'Not stated' }}</dd>
+              </div>
+              <div class="facts__item">
+                <dt>Location</dt>
+                <dd>
+                  {{ name(cities(), a.currentCityId) }}, {{ name(states(), a.currentStateId) }}
+                </dd>
+              </div>
+              <div class="facts__item">
+                <dt>Expected salary</dt>
+                <dd>{{ salaryLabel(a.expectedSalaryMin, a.expectedSalaryMax) }}</dd>
+              </div>
+            </dl>
+
+            @if (a.aboutMe) {
+              <p class="applicant__about">{{ a.aboutMe }}</p>
+            }
+          </div>
+        </section>
+      </div>
+
+      <!--==================================================================
+        RIGHT — what you can do, and what has happened
+      ===================================================================-->
+      <aside class="applicant__side">
+        <section class="card">
+          <div class="card__header">
+            <h2 class="card__title">Move this application</h2>
+          </div>
+
+          <div class="card__body">
+            @if (rejecting()) {
+              <!--
+                🔴 Rejection takes an optional reason, and the reason is the
+                SCHOOL's own note. It is never shown to the teacher — their
+                list says "Not selected" and nothing more (017).
+              -->
+              <label class="field__label" for="rejection-reason">
+                Reason <span class="field__optional">(optional, kept private to your team)</span>
+              </label>
+              <textarea
+                class="form-control"
+                id="rejection-reason"
+                rows="3"
+                maxlength="500"
+                placeholder="Why this application is not going forward"
+                [ngModel]="rejectionReason()"
+                (ngModelChange)="rejectionReason.set($event)"
+              ></textarea>
+
+              <p class="field__helper">
+                The teacher is told they were not selected. They are not shown
+                this note, and this cannot be undone.
+              </p>
+
+              <div class="applicant__buttons">
+                <button
+                  type="button"
+                  class="btn btn--danger"
+                  [disabled]="busy()"
+                  (click)="confirmReject()"
+                >Confirm</button>
+                <button type="button" class="btn btn--ghost" (click)="cancelReject()">
+                  Cancel
+                </button>
+              </div>
+            } @else if (actions().length > 0) {
+              <!--
+                🔴 THE SERVER'S LIST, narrowed by this user's permissions. This
+                component holds no copy of the transition map — see its header.
+              -->
+              <div class="applicant__buttons">
+                @for (action of actions(); track action.applicationStatusId) {
+                  <button
+                    type="button"
+                    class="btn"
+                    [class.btn--primary]="action.code !== 'REJECTED'"
+                    [class.btn--danger]="action.code === 'REJECTED'"
+                    [disabled]="busy()"
+                    (click)="setStatus(action)"
+                  >{{ action.name }}</button>
+                }
+              </div>
+            } @else if (isRejected()) {
+              <!--
+                Terminal. The empty list is the right answer, not a missing one:
+                moving somebody back to Shortlisted would mean the product had
+                told them something untrue.
+              -->
+              <p class="note">
+                This application is closed. A rejected application cannot be
+                reopened — if this was a mistake, talk to the teacher directly
+                or invite them to a new posting.
+              </p>
+
+              @if (a.rejectionReason) {
+                <p class="field__helper">Your team's note: {{ a.rejectionReason }}</p>
+              }
+            } @else if (readOnly()) {
+              <!-- One honest line, rather than a screen that looks broken. -->
+              <p class="note">
+                You can read this application. Moving it along is done by your
+                school's HR and owner accounts.
+              </p>
+            } @else {
+              <p class="note">There is nothing to do on this application right now.</p>
+            }
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card__header">
+            <h2 class="card__title">History</h2>
+            <p class="card__subtitle">Append-only. Nothing here is edited or removed.</p>
+          </div>
+
+          <div class="card__body">
+            <ol class="timeline">
+              @for (step of a.history; track step.historyId) {
+                <li class="timeline__item">
+                  <p class="timeline__title">
+                    @if (step.fromStatusName) {
+                      {{ step.fromStatusName }} → {{ step.toStatusName }}
+                    } @else {
+                      {{ step.toStatusName }}
+                    }
+                  </p>
+                  <p class="timeline__meta">
+                    {{ step.changedOn | date: 'd MMM yyyy, h:mm a' }}
+                    · by {{ actorLabel(step.changedByName) }}
+                  </p>
+                  @if (step.remarks) {
+                    <p class="timeline__note">{{ step.remarks }}</p>
+                  }
+                </li>
+              }
+            </ol>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+}

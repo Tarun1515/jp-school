@@ -154,6 +154,15 @@
   cursor: help;
 }
 
+// Phase 5B — the link to a job's applicants, in the same quiet hand as the
+// published date above it. It is a fact about the row, not an action on it.
+.job__applicants {
+  color: var(--jp-primary-700);
+  text-decoration: none;
+
+  &:hover { text-decoration: underline; }
+}
+
 .sr-only { @include m.visually-hidden; }
 
 @media (max-width: 40rem) {

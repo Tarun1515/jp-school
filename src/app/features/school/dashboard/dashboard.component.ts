@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { RouterLink } from '@angular/router';
 import { UiBadgeComponent, UiButtonComponent, UiEmptyStateComponent } from 'jp-shared/ui';
 
+import { ApplicantService, SchoolApplicantStats } from '../../../core/applicant.service';
 import { DashboardService, SchoolDashboard } from '../../../core/dashboard.service';
 import { JobService, JobStats } from '../../../core/job.service';
 
@@ -21,7 +22,7 @@ import { JobService, JobStats } from '../../../core/job.service';
  * plan, its team.
  *
  * ----------------------------------------------------------------------------
- * 🔴 PHASE 4B: THE JOBS AREA IS NOW REAL. APPLICANTS IS STILL NOT.
+ * 🔴 PHASE 4B: THE JOBS AREA BECAME REAL.
  * ----------------------------------------------------------------------------
  * 3I could not show a job count because t_app_jobs did not exist, and a zero
  * would have been a measurement of something unmeasurable — indistinguishable
@@ -32,12 +33,22 @@ import { JobService, JobStats } from '../../../core/job.service';
  * vacancy yet" is a fact about this school, where the old copy — "arrives in a
  * coming release" — was a fact about the product.
  *
- * ⚠️ THE APPLICANTS AREA IS UNTOUCHED, and that is deliberate.
- * t_app_applications is Phase 5. Its disabled action and "arrives after job
- * posting" note stay exactly as 3I wrote them, because they are still true —
- * and that is the ONE place a disabled control is right: "not yet" is a fact
- * about the product, where "not allowed" would be a fact about the person and
- * gets the other treatment (see UiEmptyStateComponent).
+ * ----------------------------------------------------------------------------
+ * 🔴 PHASE 5B: THE APPLICANTS AREA IS REAL TOO. THE DASHBOARD IS NOW HONEST.
+ * ----------------------------------------------------------------------------
+ * 4B left it as a disabled action with "applications arrive after job posting",
+ * which was the right answer while t_app_applications did not exist: "not yet"
+ * is a fact about the PRODUCT, and that is the one place a disabled control
+ * belongs (2.62).
+ *
+ * The table exists now, so that sentence has stopped being true and the tile
+ * says what is actually there. A school with no applications gets a real zero
+ * and copy about ITS OWN state — "nobody has applied yet" — rather than a
+ * promise about a release.
+ *
+ * ⚠️ EVERY OTHER AREA OF THIS SCREEN IS UNTOUCHED. 4B changed the jobs half and
+ * left the rest byte-identical; 5B changes the applicants half and does the
+ * same.
  */
 @Component({
   selector: 'app-school-dashboard',
@@ -49,6 +60,7 @@ import { JobService, JobStats } from '../../../core/job.service';
 export class SchoolDashboardComponent {
   private readonly dashboards = inject(DashboardService);
   private readonly jobs = inject(JobService);
+  private readonly applicants = inject(ApplicantService);
 
   protected readonly loading = signal(true);
   protected readonly loadFailed = signal(false);
@@ -76,6 +88,21 @@ export class SchoolDashboardComponent {
    * partial one.
    */
   protected readonly jobStats = signal<JobStats | null>(null);
+
+  /**
+   * The applicants area's real numbers (Phase 5B).
+   *
+   * 🔴 ITS OWN CALL, AND ITS OWN PERMISSION, for the same reason jobs got one.
+   * The stats route needs APPLICANT.VIEW; somebody without it gets a 403 here
+   * and the rest of the dashboard is unaffected. Folding these counts into the
+   * dashboard endpoint would mean one missing permission either breaks the
+   * whole screen or silently returns a partial one.
+   *
+   * ⚠️ NO PARAMETERS, and that IS the security property — there is no schoolId
+   * or branchId to forge. The server resolves the school from the token and
+   * scopes the branches to what this user holds (2.39).
+   */
+  protected readonly applicantStats = signal<SchoolApplicantStats | null>(null);
 
   protected readonly isMultiCampus = computed(() => this.data()?.groupType !== 1);
 
@@ -141,6 +168,13 @@ export class SchoolDashboardComponent {
     this.jobs.stats().subscribe({
       next: (stats) => this.jobStats.set(stats),
       error: () => this.jobStats.set(null),
+    });
+
+    // Same shape, same reasoning: a Viewer without APPLICANT.VIEW loses this
+    // tile and keeps the dashboard.
+    this.applicants.stats().subscribe({
+      next: (stats) => this.applicantStats.set(stats),
+      error: () => this.applicantStats.set(null),
     });
   }
 

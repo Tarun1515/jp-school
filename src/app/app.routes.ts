@@ -204,21 +204,48 @@ export const routes: Routes = [
       },
 
       /*
-        🔴 /applicants HAS NO ROUTE — removed in 3I.
+        🔴 /applicants IS BACK — PHASE 5B, and it reads the database now.
 
-        It was a static mockup: fifty rows from a fixture file, no HTTP call,
-        and one of the two screens that looked the most finished (G6). The
-        component is kept for its design under `_design-reference/applicants/`
-        and comes back in Phase 5, when there are applications to list.
+        3I removed this route because the screen was a static mockup: fifty
+        rows from a fixture file, no HTTP call, and one of the two that looked
+        the most finished (G6). The seed hid its menu row in the same change,
+        because menus are data (2.37) and a hidden route with a visible entry
+        is a 404 in every school's sidebar.
 
-        Its menu row is hidden too (SCHOOL_APPLICANTS, IsMenuVisible = 0) —
-        menus are data (2.37), so a route removed here without the seed change
-        would leave every school a sidebar entry that 404s.
+        Both are reversed together: SCHOOL_APPLICANTS goes back to
+        IsMenuVisible = 1 in 005_seed_menus.sql, and `_design-reference/` is
+        DELETED — its design is in these two components and two applicant
+        screens in one repo is how the wrong one gets edited.
 
-        ⚠️ Deliberately NOT a `comingSoon` placeholder. That would be a third
-        state — neither the real screen nor honestly absent — and the dashboard
-        already says what this section will be and when.
+        ⚠️ ONE COMPONENT FOR BOTH VIEWS. /applicants is school-wide and
+        /applicants?jobId=12 is one posting's, because they are the same
+        question with one more filter — and the filter is applied by the server
+        AFTER the scope join, so a job id from another school matches nothing
+        rather than answering differently (2.6).
+
+        ⚠️ NOT permission-guarded here, deliberately, and for the same reason
+        /users is not: the menu row is gated on APPLICANT.VIEW so only people
+        who hold it are offered the link, and the SERVER refuses the read
+        regardless of how somebody arrived. A guard would add a third place the
+        same rule lives.
       */
+      {
+        path: 'applicants',
+        loadComponent: () =>
+          import('./features/school/applicants/list/applicant-list.component').then(
+            (m) => m.ApplicantListComponent,
+          ),
+        data: { title: 'Applicants' },
+      },
+      {
+        path: 'applicants/:applicationId',
+        loadComponent: () =>
+          import('./features/school/applicants/detail/applicant-detail.component').then(
+            (m) => m.ApplicantDetailComponent,
+          ),
+        data: { title: 'Applicant' },
+      },
+
 
       { path: 'teacher-search', loadComponent: comingSoon, data: { title: 'Find teachers' } },
       { path: 'offers', loadComponent: comingSoon, data: { title: 'Offers' } },

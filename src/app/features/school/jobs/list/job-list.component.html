@@ -73,6 +73,26 @@
               @if (row.publishedOn) {
                 <span class="job__meta">Published {{ row.publishedOn | date: 'd MMM yyyy' }}</span>
               }
+
+              <!--
+                🔴 Phase 5B. The count is DERIVED by the server on every read —
+                `t_app_jobs.ApplicationCount` exists, stays at zero and is never
+                written (024). A maintained counter would drift from the list
+                behind this link with nothing erroring.
+
+                ⚠️ A link only when there is something to open. "0 applicants"
+                as a dead link is a worse answer than the row saying nothing.
+              -->
+              @if (row.applicationCount > 0) {
+                <a
+                  class="job__meta job__applicants"
+                  routerLink="/applicants"
+                  [queryParams]="{ jobId: row.jobId }"
+                >
+                  {{ row.applicationCount }}
+                  {{ row.applicationCount === 1 ? 'applicant' : 'applicants' }}
+                </a>
+              }
             </th>
 
             <td>{{ row.branchName }}</td>

@@ -1,0 +1,109 @@
+@use 'variables' as v;
+@use 'mixins' as m;
+
+// -----------------------------------------------------------------------------
+// APPLICANT DETAIL
+//
+// 🔴 The page frame, cards, facts list, badges and buttons are all the design
+// system (2.23). What is here is the two-column split and the timeline, which
+// are this screen's own.
+// -----------------------------------------------------------------------------
+
+.applicant__back {
+  align-self: flex-start;
+  font-size: var(--jp-font-size-sm);
+  color: var(--jp-text-muted);
+  text-decoration: none;
+
+  &:hover { color: var(--jp-text); }
+}
+
+// What they sent on the left, what you can do on the right. The actions column
+// is narrower and does not stretch: a row of buttons spread across half a
+// 1440px screen reads as a toolbar rather than a decision.
+.applicant__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 21rem;
+  gap: v.$space-5;
+  align-items: start;
+}
+
+.applicant__main,
+.applicant__side {
+  @include m.flex-column(v.$space-5);
+
+  min-width: 0;
+}
+
+// Typed by a person, so it keeps their line breaks and wraps like prose.
+.applicant__cover,
+.applicant__about {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: var(--jp-font-size-sm);
+  line-height: var(--jp-line-height-relaxed);
+  color: var(--jp-text);
+}
+
+.applicant__about {
+  margin-top: v.$space-4;
+  padding-top: v.$space-4;
+  border-top: var(--jp-rule-width) solid var(--jp-rule);
+  color: var(--jp-text-muted);
+}
+
+.applicant__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: v.$space-2;
+  margin-top: v.$space-3;
+
+  // The first button is the one somebody usually wants; it takes the row on a
+  // narrow panel rather than sitting beside a half-width sibling.
+  .btn { flex: 1 1 auto; }
+}
+
+// -----------------------------------------------------------------------------
+// The history. A list, ruled like everything else, with the oldest step first —
+// it is read as a narrative, not as a feed.
+// -----------------------------------------------------------------------------
+.timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline__item {
+  padding: v.$space-3 0;
+  border-bottom: var(--jp-rule-width) solid var(--jp-rule);
+
+  &:first-child { padding-top: 0; }
+  &:last-child { padding-bottom: 0; border-bottom: 0; }
+}
+
+.timeline__title {
+  margin: 0;
+  font-size: var(--jp-font-size-sm);
+  font-weight: var(--jp-font-weight-medium);
+  color: var(--jp-text);
+}
+
+.timeline__meta {
+  margin: 2px 0 0;
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-muted);
+}
+
+.timeline__note {
+  margin: v.$space-1 0 0;
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-muted);
+  font-style: italic;
+  white-space: pre-wrap;
+}
+
+@include m.down(lg) {
+  // One column below lg. The actions move UNDER what they act on, which is the
+  // order somebody reads on a phone: the application first, the decision after.
+  .applicant__columns { grid-template-columns: minmax(0, 1fr); }
+}

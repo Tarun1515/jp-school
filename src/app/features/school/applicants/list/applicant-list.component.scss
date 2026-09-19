@@ -1,0 +1,151 @@
+@use 'variables' as v;
+@use 'mixins' as m;
+
+// -----------------------------------------------------------------------------
+// APPLICANT LIST — the row's own detail, and the phone reflow.
+//
+// 🔴 EVERYTHING ELSE IS THE DESIGN SYSTEM (2.23). The page frame, the filter
+// strip, the ruled table, the margin rule, the pager and the badges all come
+// from jp-shared. Nothing below re-declares any of them, and nothing below
+// invents a colour or a size — every value is a token.
+//
+// ⚠️ This file is deliberately SHORT. The 1D reference needed 180 lines because
+// it hand-rolled the strip; the strip now lives in `_layout.scss` and the rest
+// of the grammar was already there.
+// -----------------------------------------------------------------------------
+
+// The id sits under the name in the register's smaller hand — present for
+// anyone who needs to quote it, quiet enough to scan past.
+.applicant__id {
+  display: block;
+  font-size: 0.6875rem;
+  color: var(--jp-text-subtle);
+  line-height: 1.2;
+}
+
+.applicant__name {
+  color: var(--jp-text);
+  font-weight: var(--jp-font-weight-medium);
+  text-decoration: none;
+
+  &:hover { text-decoration: underline; }
+}
+
+.applicant__role {
+  @include m.truncate;
+
+  max-width: 18rem;
+  color: var(--jp-text-muted);
+}
+
+.applicant__status {
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-muted);
+
+  // Red is the ONLY emphasis in this column. Everything else is a quiet
+  // statement of where the row has got to.
+  .row--attention & {
+    color: var(--jp-danger-text);
+    font-weight: var(--jp-font-weight-semibold);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Below md the table stops being a table.
+//
+// Seven columns cannot be read on a 375px screen, and scrolling sideways
+// through them is worse than useless. The same rows become ruled entries — same
+// rhythm, same margin rule, same roll — laid out in the order someone scanning
+// a phone actually reads: who, what they applied for, the facts, then where it
+// has got to.
+//
+//   [ name ......................... status ]
+//   [ applied for .......................... ]
+//   [ campus · 4y · 2 Jul ................... ]
+//   [ roll .................................. ]
+//
+// ⚠️ Carried over from the 1D reference almost unchanged — it is the half of
+// that design that could not be expressed in the shared stylesheet, because it
+// depends on what this table's columns MEAN.
+// -----------------------------------------------------------------------------
+@include m.down(md) {
+  .table {
+    thead { display: none; }
+
+    tbody tr {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: v.$space-1 v.$space-2;
+      padding: v.$space-3 v.$space-4;
+      border-bottom: var(--jp-rule-width) solid var(--jp-rule);
+      box-shadow: inset var(--jp-margin-rule-width) 0 0 var(--jp-row-rule, transparent);
+    }
+
+    tbody tr:last-child { border-bottom: 0; }
+
+    tbody th,
+    tbody td {
+      display: block;
+      height: auto;
+      padding: 0;
+      border: 0;
+      box-shadow: none;
+      text-align: left;
+    }
+
+    // 1 name — takes the row, pushing the status to the far edge
+    tbody th:nth-child(1) {
+      flex: 1 1 auto;
+      font-size: var(--jp-font-size-base);
+    }
+
+    // 7 status — right of the name
+    tbody td:nth-child(7) {
+      flex: 0 0 auto;
+      margin-left: auto;
+      text-align: right;
+    }
+
+    // 2 applied for — its own line
+    tbody td:nth-child(2) {
+      flex: 1 0 100%;
+      order: 1;
+    }
+
+    // 3 campus · 4 experience · 5 applied — one meta line, separated by
+    // middots rather than by more markup
+    tbody td:nth-child(3),
+    tbody td:nth-child(4),
+    tbody td:nth-child(5) {
+      flex: 0 0 auto;
+      order: 2;
+      font-size: var(--jp-font-size-xs);
+      color: var(--jp-text-muted);
+    }
+
+    tbody td:nth-child(4)::before,
+    tbody td:nth-child(5)::before {
+      content: '·';
+      margin-right: v.$space-2;
+      color: var(--jp-text-subtle);
+    }
+
+    // 6 the roll — last, on its own line, where the eye lands after the facts
+    tbody td:nth-child(6) {
+      flex: 1 0 100%;
+      order: 3;
+      margin-top: v.$space-1;
+    }
+  }
+
+  .applicant__role {
+    max-width: none;
+    font-size: var(--jp-font-size-sm);
+  }
+
+  .applicant__id {
+    display: inline;
+    margin-left: v.$space-2;
+  }
+}

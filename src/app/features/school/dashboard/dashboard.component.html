@@ -182,16 +182,16 @@
     }
 
     <!--====================================================================
-      🔴 JOBS IS REAL NOW. APPLICANTS IS STILL NOT.
+      🔴 BOTH HALVES ARE REAL NOW.
 
-      Phase 4 built t_app_jobs, so the counts below are a MEASUREMENT — and a
-      school with no jobs shows a real zero, which is a different thing from
-      the placeholder that used to sit here.
+      Phase 4 built t_app_jobs and Phase 5 built t_app_applications, so every
+      number below is a MEASUREMENT. A school with none of either shows a real
+      zero, which is a different thing from the placeholders that used to sit
+      here — a zero says something about THIS school, where "arrives in a
+      coming release" said something about the product (2.62).
 
-      ⚠️ The applicants area underneath is UNCHANGED, deliberately.
-      t_app_applications is Phase 5, and a zero there would still be a number
-      with nothing behind it (2.62). Phase 4B touched the jobs half and left
-      the other byte-identical.
+      ⚠️ 4B changed the jobs half and left the other byte-identical; 5B changed
+      the applicants half the same way. Nothing else on this screen moved.
     =====================================================================-->
     <div class="tiles tiles--wide" style="--jp-enter-index: 3">
       <section class="card">
@@ -256,14 +256,67 @@
 
       <section class="card">
         <div class="card__body">
-          <ui-empty-state
-            icon="🧑‍🏫"
-            title="Applicants"
-            message="Everyone who applies to your jobs, with where each of them has got to."
-            actionLabel="Review applicants"
-            [actionDisabled]="true"
-            note="Applications arrive after job posting."
-          />
+          @if (applicantStats(); as stats) {
+            @if (stats.totalApplications === 0) {
+              <!--
+                A real zero. "Nobody has applied yet" is a measurement of this
+                school; the copy it replaced was a promise about a release.
+              -->
+              <ui-empty-state
+                icon="🧑‍🏫"
+                title="Applicants"
+                message="Nobody has applied yet. Your open jobs go out to teachers whose subject and class level match them."
+                actionLabel="See your jobs"
+                actionLink="/jobs"
+              />
+            } @else {
+              <div class="jobs__head">
+                <h2 class="card__title">Applicants</h2>
+                <a class="link" routerLink="/applicants">See all</a>
+              </div>
+
+              <!--
+                🔴 "Needs a reply" leads, because it is the only number anybody
+                acts on. It is Applied + Viewed — nobody has made a decision on
+                those — and the SERVER counts them, so a browser with a wrong
+                clock cannot disagree about the total.
+              -->
+              <dl class="jobs__counts">
+                <div class="jobs__count">
+                  <dt>Needs a reply</dt>
+                  <dd>{{ stats.newCount + stats.viewedCount }}</dd>
+                </div>
+                <div class="jobs__count">
+                  <dt>Shortlisted</dt>
+                  <dd>{{ stats.shortlistedCount }}</dd>
+                </div>
+                <div class="jobs__count">
+                  <dt>Interview</dt>
+                  <dd>{{ stats.interviewCount }}</dd>
+                </div>
+                <div class="jobs__count">
+                  <dt>Selected</dt>
+                  <dd>{{ stats.selectedCount }}</dd>
+                </div>
+              </dl>
+
+              <ul class="jobs__recent">
+                @for (person of stats.recent; track person.applicationId) {
+                  <li class="jobs__row">
+                    <a class="jobs__link" [routerLink]="['/applicants', person.applicationId]">
+                      {{ person.teacherName }}
+                    </a>
+                    <span class="jobs__meta">
+                      {{ person.jobTitle }} · {{ person.statusName }}
+                      · applied {{ person.appliedOn | date: 'd MMM' }}
+                    </span>
+                  </li>
+                }
+              </ul>
+            }
+          } @else {
+            <p class="jobs__loading">Loading your applicants …</p>
+          }
         </div>
       </section>
     </div>

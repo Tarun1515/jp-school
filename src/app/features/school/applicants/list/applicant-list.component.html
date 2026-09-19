@@ -1,0 +1,256 @@
+<!--
+  🔴 DESIGN SYSTEM CLASSES, NOT LOCAL COPIES OF THEM (2.23).
+
+  `.page`, `.page__header`, `.page__toolbar`, `.table-wrap`, `.table`,
+  `.table-pager`, `.row--attention`, `.note` and `.badge` all come from
+  jp-shared's stylesheets. The component's own SCSS holds ONLY what is specific
+  to this screen: the row's inner detail and the phone reflow.
+
+  ⚠️ The 4B job list hand-rolled `.page__head`, `.banner`, `.state` and
+  `.table__scroll` when four of the five already existed in the design system.
+  That drift is what G27 is about, and Phase 5B is the phase that would have
+  tripled it — six new screens copying the same chrome again.
+-->
+<div class="page">
+  <header class="page__header">
+    <div class="page__heading">
+      <h1 class="page__title">Applicants</h1>
+
+      @if (jobId()) {
+        <p class="page__description">
+          Everyone who has applied to this posting.
+          <a routerLink="/applicants">See all applicants</a>
+        </p>
+      } @else {
+        <p class="page__description">
+          Everyone who has applied to your jobs. The stage column shows how far
+          each one has got.
+        </p>
+      }
+    </div>
+
+    <div class="page__actions">
+      <a class="btn" routerLink="/jobs">Your jobs</a>
+    </div>
+  </header>
+
+  <!--
+    The filter strip. Sits directly on top of the sheet with no gap, so the page
+    reads as one continuous document rather than a control bar with a grid
+    underneath it — the reference's decision, and `.page__toolbar` is the design
+    system's name for it.
+  -->
+  <div class="page__toolbar" style="--jp-enter-index: 1">
+    <div class="page__toolbar__search">
+      <label class="visually-hidden" for="applicant-search">Search the applicants shown</label>
+      <!--
+        ⚠️ The placeholder says "shown" because that is the truth: the endpoint
+        has no search parameter, so this narrows the rows already loaded. A box
+        implying it searched everything would start lying the day a school
+        passed the server's cap.
+      -->
+      <input
+        class="form-control"
+        id="applicant-search"
+        type="search"
+        placeholder="Search the applicants shown"
+        [ngModel]="search()"
+        (ngModelChange)="search.set($event); onClientFilterChange()"
+      />
+    </div>
+
+    <div class="page__toolbar__control">
+      <label class="visually-hidden" for="filter-status">Stage</label>
+      <!--
+        🔴 Server-side, and the options come from the MASTER (2.7) — the six
+        reachable statuses. The offer chain exists in the master with its ids
+        fixed, but nothing can reach it until Phase 6, and an option that can
+        only ever return an empty list is indistinguishable from a broken
+        screen.
+      -->
+      <select
+        class="form-control"
+        id="filter-status"
+        [ngModel]="statusId()"
+        (ngModelChange)="onStatusChange($event)"
+      >
+        <option [ngValue]="null">All stages</option>
+        @for (status of statuses(); track status.id) {
+          <option [ngValue]="status.id">{{ status.name }}</option>
+        }
+      </select>
+    </div>
+
+    <!--
+      A real checkbox, not a styled div: a filter people reach for with the
+      keyboard several times an hour.
+    -->
+    <label class="page__toolbar__toggle">
+      <input
+        type="checkbox"
+        [ngModel]="waitingOnly()"
+        (ngModelChange)="waitingOnly.set($event); onClientFilterChange()"
+      />
+      <span>Needs your reply</span>
+      <span class="badge badge--danger">{{ waitingCount() }}</span>
+    </label>
+
+    @if (hasFilters()) {
+      <button type="button" class="btn btn--ghost btn--sm page__toolbar__clear" (click)="clearFilters()">
+        Clear
+      </button>
+    }
+  </div>
+
+  @if (atServerCap()) {
+    <!--
+      🔴 The cap, said out loud. The procedure returns at most 200 rows, and a
+      school making a hiring decision from a silently truncated list would never
+      know it had one.
+    -->
+    <p class="note" role="status">
+      Showing the most recent {{ rows().length }} applications. Filter by stage,
+      or open a single job from <a routerLink="/jobs">your jobs</a>, to see the rest.
+    </p>
+  }
+
+  @if (loading()) {
+    <p class="table__loading">Loading …</p>
+  } @else if (failed()) {
+    <p class="note" role="alert">
+      Your applicants could not be loaded. Nothing has been changed.
+    </p>
+  } @else if (rows().length === 0) {
+    <ui-empty-state
+      icon="🧑‍🏫"
+      title="No applications yet"
+      [message]="jobId()
+        ? 'Nobody has applied to this posting yet. Teachers whose subject and class level match it can see it while it is open.'
+        : 'Nobody has applied yet. Your jobs go out to teachers whose subject and class level match them, and the first applications usually arrive within a day.'"
+      actionLabel="See your jobs"
+      actionLink="/jobs"
+    />
+  } @else if (total() === 0) {
+    <ui-empty-state
+      icon="🔍"
+      title="No applicants match those filters"
+      message="Try clearing the search, or choosing a different stage."
+      actionLabel="Clear filters"
+      (action)="clearFilters()"
+    />
+  } @else {
+    <div class="table-wrap" style="--jp-enter-index: 2">
+      <table class="table table--hover">
+        <caption class="visually-hidden">
+          Applicants to your jobs, {{ total() }} shown
+        </caption>
+
+        <thead>
+          <tr>
+            <th scope="col">Applicant</th>
+            <th scope="col">Applied for</th>
+            <th scope="col">Campus</th>
+            <th scope="col" class="table__number">Exp.</th>
+            <th scope="col">Applied</th>
+            <th scope="col">Stage</th>
+            <th scope="col" class="table__actions">Status</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          @for (row of paged(); track row.applicationId) {
+            <tr [class]="rowState(row)" class="table__row--clickable" (click)="open(row)">
+              <th scope="row" class="table__primary">
+                <!--
+                  A real link inside the clickable row, so the keyboard and
+                  "open in new tab" both work. The row click is a convenience
+                  on top of it, never the only way in.
+                -->
+                <a
+                  class="applicant__name"
+                  [routerLink]="['/applicants', row.applicationId]"
+                  (click)="$event.stopPropagation()"
+                >{{ row.teacherName }}</a>
+
+                <!--
+                  🔴 A SIGNAL, NOT A GATE (2.9, a locked stance). An unverified
+                  teacher can apply and does appear in this list. The badge says
+                  what has been checked; it never decides who is here, and there
+                  is deliberately no "verified only" filter.
+                -->
+                @if (row.isVerified) {
+                  <span class="badge badge--verified badge--sm">Verified</span>
+                }
+
+                <span class="applicant__id">#{{ row.applicationId }}</span>
+              </th>
+
+              <td class="applicant__role">{{ row.jobTitle }}</td>
+
+              <td>{{ row.branchName }}</td>
+
+              <td class="table__number">{{ experienceLabel(row.totalExperienceMonths) }}</td>
+
+              <td class="table__code">{{ row.appliedOn | date: 'd MMM' }}</td>
+
+              <!--
+                Stage only. No tone: urgency is the margin rule's job, and a
+                roll that went red would stop being the shape you scan the
+                column for.
+              -->
+              <td>
+                @if (isRejected(row)) {
+                  <ui-badge tone="neutral" size="sm">{{ row.statusName }}</ui-badge>
+                } @else {
+                  <ui-roll [stages]="stages()" [current]="stageOf(row)" size="xs" />
+                }
+              </td>
+
+              <!--
+                The words that go with the margin rule. Without this cell the
+                colour would be the only signal, which makes the triage
+                information invisible to a good number of people.
+              -->
+              <td class="table__actions applicant__status">{{ rowStateLabel(row) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      @if (totalPages() > 1) {
+        <nav class="table-pager" aria-label="Applicant pages">
+          <span class="table-pager__summary">
+            {{ rangeStart() }}–{{ rangeEnd() }} of {{ total() }}
+          </span>
+
+          <div class="table-pager__controls">
+            <button
+              type="button"
+              class="table-pager__page"
+              [disabled]="page() === 1"
+              (click)="goToPage(page() - 1)"
+              aria-label="Previous page"
+            >‹</button>
+
+            @for (number of pageNumbers(); track number) {
+              <button
+                type="button"
+                class="table-pager__page"
+                [attr.aria-current]="number === page() ? 'page' : null"
+                (click)="goToPage(number)"
+              >{{ number }}</button>
+            }
+
+            <button
+              type="button"
+              class="table-pager__page"
+              [disabled]="page() === totalPages()"
+              (click)="goToPage(page() + 1)"
+              aria-label="Next page"
+            >›</button>
+          </div>
+        </nav>
+      }
+    </div>
+  }
+</div>
