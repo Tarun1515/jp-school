@@ -71,6 +71,19 @@
   gap: v.$space-4;
 }
 
+/*
+  ⚠️ A field that belongs to the two-column rhythm but has no partner —
+  employment type, which is structural like the four selects above it and would
+  read as a different KIND of question if it stretched the full width.
+
+  An empty sibling <div> inside .field__row would do the same thing with markup
+  that means nothing; this says what it is. It goes back to full width at the
+  same breakpoint the row does.
+*/
+.field--half {
+  max-width: calc(50% - (#{v.$space-4} / 2));
+}
+
 .field__label {
   display: flex;
   align-items: center;
@@ -131,5 +144,6 @@
 @media (max-width: 40rem) {
   .page__head { flex-direction: column; align-items: stretch; }
   .field__row { grid-template-columns: 1fr; }
+  .field--half { max-width: none; }
   .form__actions { flex-direction: column-reverse; }
 }

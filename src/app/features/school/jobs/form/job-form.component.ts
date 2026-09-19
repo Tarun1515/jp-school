@@ -21,9 +21,9 @@ import {
  * 🔴 THE LOCKED FIELDS ARE VISIBLY LOCKED, AND THEY SAY WHY
  * ----------------------------------------------------------------------------
  * Once a job is published, the fields a teacher MATCHED on stop being editable:
- * campus, subject, designation, qualification, location and the experience
- * band. The terms — title, salary, timings, description, closing date — stay
- * open.
+ * campus, subject, designation, qualification, employment type, location and
+ * the experience band. The terms — title, salary, timings, description, closing
+ * date — stay open.
  *
  * ⚠️ This is 2.62's "not allowed", not "not yet", so the treatment is
  * different from a disabled action on the dashboard: the controls stay VISIBLE
@@ -35,21 +35,25 @@ import {
  * gets the same refusal whether or not this form drew the lock.
  *
  * ----------------------------------------------------------------------------
- * ⚠️ THERE IS NO EMPLOYMENT-TYPE CONTROL, AND THAT IS A REPORTED GAP
+ * 🔴 EMPLOYMENT TYPE COMES FROM THE MASTER, LIKE EVERY OTHER DROPDOWN (G26)
  * ----------------------------------------------------------------------------
- * `m_app_employment_types` lives in jp_app. `/api/masters/*` reads jp_mdm's
- * `USP_GetMaster`, which has no branch for it — so there is no endpoint that
- * can populate that dropdown.
+ * Phase 4B shipped this form WITHOUT the control, because
+ * `m_app_employment_types` lives in jp_app and `/api/masters/*` only read
+ * jp_mdm — so there was no data source, and hardcoding the five values would
+ * have been precisely what decision 2.7 forbids while looking like it worked.
+ * The consequence was stated and carried as gap G26: no school could post a
+ * Part-time, Contract, Visiting or Temporary vacancy at all.
  *
- * 🔴 The five values are NOT hardcoded here. Decision 2.7 says every dropdown
- * comes from a master table so that a change needs no deployment, and a
- * hardcoded list would be exactly the thing it forbids while looking like it
- * works.
+ * The read now falls through to jp_app's `USP_GetAppMaster` (decision 2.68), so
+ * the list arrives from `GET /api/masters/employment-type` exactly like subject
+ * and designation do. ⚠️ Nothing here knows or cares which database answered —
+ * if you ever find yourself adding a branch for that, the fix belongs on the
+ * server.
  *
- * So the field is omitted and the column's default applies (Full-time). The
- * consequence, stated: a school cannot currently post a Part-time or Contract
- * vacancy through this form. Closing it needs one endpoint that does not exist,
- * which Phase 4B did not add on its own authority.
+ * 🔴 Employment type is one of the LOCKED fields. A teacher applied to a
+ * Part-time post; turning it Full-time underneath them changes what they
+ * applied to. `USP_SaveJob` refuses it with JOB_FIELD_LOCKED regardless of what
+ * this form draws.
  */
 @Component({
   selector: 'app-job-form',
@@ -78,6 +82,7 @@ export class JobFormComponent {
   protected readonly designations = signal<Lookup[]>([]);
   protected readonly qualifications = signal<Lookup[]>([]);
   protected readonly classLevels = signal<Lookup[]>([]);
+  protected readonly employmentTypes = signal<Lookup[]>([]);
   protected readonly branches = signal<{ branchId: number; branchName: string }[]>([]);
 
   /** Field-level messages, keyed by field name. Never one generic toast. */
@@ -89,7 +94,13 @@ export class JobFormComponent {
     subjectId: 0,
     designationId: 0,
     qualificationId: null,
-    employmentTypeId: 1,          // see the class docs — no control for this yet
+    /*
+      ⚠️ Seeded to 1, which is what the column defaults to anyway — NOT a
+      hardcoded "Full-time". It is the starting value of a control that the
+      master then fills, and `pickDefaultEmploymentType` below replaces it with
+      the first row the server actually sent rather than assuming 1 is real.
+    */
+    employmentTypeId: 1,
     noOfVacancies: 1,
     minExperienceMonths: null,
     maxExperienceMonths: null,
@@ -128,6 +139,18 @@ export class JobFormComponent {
     this.masters.get(MASTER_KEYS.qualification).subscribe((v) => this.qualifications.set(v));
     this.masters.get(MASTER_KEYS.classLevel).subscribe((v) => this.classLevels.set(v));
 
+    /*
+      🔴 G26 CLOSED. This is the read Phase 4B could not make, and it goes
+      through the SAME MasterService and the same cache as the four above — no
+      special case, no second code path, nothing that says "jp_app".
+    */
+    this.masters.get(MASTER_KEYS.employmentType).subscribe((v) => {
+      // Default first, signal second: the signal is what schedules the render,
+      // so the form value it renders should already be the corrected one.
+      this.pickDefaultEmploymentType(v);
+      this.employmentTypes.set(v);
+    });
+
     this.schools.listBranches(false).subscribe((list) => {
       this.branches.set(list.map((b) => ({ branchId: b.branchId, branchName: b.branchName })));
 
@@ -141,6 +164,30 @@ export class JobFormComponent {
       this.loadJob(Number(id));
     } else {
       this.loading.set(false);
+    }
+  }
+
+  /**
+   * Points a NEW job's employment type at a row the server actually sent.
+   *
+   * 🔴 Id 1 is Full-time today, and that is a fact about the seed, not a
+   * guarantee. 2.47 lets the client deactivate any row they do not want
+   * (`Is_Active = 0`, never a DELETE) — the day they retire Full-time, a form
+   * initialised to 1 would post an id the master no longer serves, the select
+   * would render with nothing chosen, and `USP_SaveJob`'s foreign key would
+   * refuse it with a message about a record that does not exist.
+   *
+   * ⚠️ Only for a NEW job. An existing one carries the type it was saved with,
+   * whether or not that row is still active — showing a school something other
+   * than what its live job says would be worse than showing a retired value.
+   */
+  private pickDefaultEmploymentType(available: Lookup[]): void {
+    if (this.isEdit() || available.length === 0) {
+      return;
+    }
+
+    if (!available.some((t) => t.id === this.form.employmentTypeId)) {
+      this.form.employmentTypeId = available[0].id;
     }
   }
 

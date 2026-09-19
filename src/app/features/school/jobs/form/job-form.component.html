@@ -18,8 +18,9 @@
     -->
     <p class="banner banner--locked" role="status">
       <strong>This job is published.</strong>
-      The campus, subject, designation, qualification and experience range are
-      locked, because teachers chose to apply on exactly those. Everything else —
+      The campus, subject, designation, qualification, employment type and
+      experience range are locked, because teachers chose to apply on exactly
+      those. Everything else —
       the title, salary, timings, description and closing date — can still be
       changed. To change a locked field, close this job and post a new one.
     </p>
@@ -119,6 +120,40 @@
               }
             </select>
           </div>
+        </div>
+
+        <!--
+          🔴 EMPLOYMENT TYPE — every option comes from the master (G26, 2.68).
+
+          ⚠️ No "Choose one" placeholder, unlike subject and designation. Those
+          two are genuinely unanswered until a school answers them; a vacancy is
+          always SOME kind of employment, so an empty choice here would be a
+          state no job is ever in. The list's first active row is selected for a
+          new job — see pickDefaultEmploymentType, which does NOT assume id 1.
+
+          It locks with the rest: it is part of what a teacher applied to.
+        -->
+        <div class="field field--half">
+          <label class="field__label" for="employmentTypeId">
+            Employment type @if (locked()) { <span class="field__lock">locked</span> }
+          </label>
+          <select
+            id="employmentTypeId"
+            name="employmentTypeId"
+            class="form-control"
+            [(ngModel)]="form.employmentTypeId"
+            [disabled]="locked()"
+          >
+            @for (e of employmentTypes(); track e.id) {
+              <option [value]="e.id">{{ e.name }}</option>
+            }
+          </select>
+          @if (!locked()) {
+            <p class="field__help">
+              Part-time, Contract, Visiting and Temporary are all real postings —
+              teachers filter on this.
+            </p>
+          }
         </div>
 
         <!--

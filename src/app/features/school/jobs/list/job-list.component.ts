@@ -2,7 +2,7 @@ import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService, ConfirmDialogService, ToastService } from 'jp-shared/core';
-import { UiBadgeComponent, UiButtonComponent, UiEmptyStateComponent } from 'jp-shared/ui';
+import { UiBadgeComponent, UiEmptyStateComponent } from 'jp-shared/ui';
 
 import { JOB_STATUS, JobListItem, JobService, jobRefusalMessage } from '../../../../core/job.service';
 
@@ -48,7 +48,7 @@ const FILTERS = [
 @Component({
   selector: 'app-job-list',
   standalone: true,
-  imports: [RouterLink, DatePipe, UiBadgeComponent, UiButtonComponent, UiEmptyStateComponent],
+  imports: [RouterLink, DatePipe, UiBadgeComponent, UiEmptyStateComponent],
   templateUrl: './job-list.component.html',
   styleUrl: './job-list.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
