@@ -268,7 +268,24 @@ export const routes: Routes = [
           ),
         data: { title: 'Find teachers' },
       },
-      { path: 'offers', loadComponent: comingSoon, data: { title: 'Offers' } },
+      /*
+        Phase 6C-2 — the school's offers.
+
+        ⚠️ The seeded SCHOOL_OFFERS row carries OFFER.CREATE, so only people who
+        can make an offer are offered the link. Not guarded here, like /jobs and
+        /applicants: the server refuses each read and each action on its own, and
+        a guard would be a third place the same rule lives.
+
+        🔴 The ACTIONS are on the applicant detail, not here. A list is where you
+        decide who to open; it is a bad place to commit to a salary — and the
+        detail is where the candidate, their resume and the offer history are.
+      */
+      {
+        path: 'offers',
+        loadComponent: () =>
+          import('./features/school/offers/offers.component').then((m) => m.OffersComponent),
+        data: { title: 'Offers' },
+      },
       {
         /*
           The seeded menu row SCHOOL_USERS points at /users and is gated on
@@ -282,7 +299,25 @@ export const routes: Routes = [
           import('./features/school/team/team.component').then((m) => m.TeamComponent),
         data: { title: 'Team' },
       },
-      { path: 'notifications', loadComponent: comingSoon, data: { title: 'Notifications' } },
+      /*
+        Phase 6C-2 — the notification page both portals route AT.
+
+        🔴 The component lives in jp-shared and BOTH apps load it directly.
+        The screen is identical by nature: a person's own notifications, newest
+        first. Wrapping it per app would be the place two copies start to
+        disagree (G27), and there is nothing portal-specific to wrap.
+
+        ⚠️ No permission guard and none possible: a notification is addressed to
+        a person, not granted by a role, and the server reads the caller's uid
+        from their token. The seeded menu row carries no PermissionCode for the
+        same reason.
+      */
+      {
+        path: 'notifications',
+        loadComponent: () =>
+          import('jp-shared/ui').then((m) => m.UiNotificationListComponent),
+        data: { title: 'Notifications' },
+      },
     ],
   },
 

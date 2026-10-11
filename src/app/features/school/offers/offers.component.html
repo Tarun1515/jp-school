@@ -1,0 +1,141 @@
+<div class="page enter">
+  <header class="page__header">
+    <div class="page__heading">
+      <h1 class="page__title">Offers</h1>
+      <p class="page__description">
+        Candidates you have made an offer to.
+        <!--
+          ⚠️ Says where the actions are rather than duplicating them. A list is
+          where you decide who to open; it is a bad place to commit to a salary.
+        -->
+        Open a candidate to send, withdraw or confirm.
+      </p>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <p class="table__loading">Loading …</p>
+  } @else if (failed()) {
+    <!--
+      🔴 One stage failing fails the whole read, deliberately. Three stages
+      answering and one dropping would draw a list that looks complete and is
+      missing everybody at that stage.
+    -->
+    <p class="note" role="alert">
+      Your offers could not be loaded. Nothing has been changed — try again in a
+      moment.
+    </p>
+  } @else if (rows().length === 0) {
+    <ui-empty-state
+      icon="📄"
+      title="No offers out at the moment"
+      message="An offer is sent from a candidate's own page, once you have selected them. Shortlist and select somebody first, and the option appears there."
+      actionLabel="Go to applicants"
+      actionLink="/applicants"
+    />
+  } @else {
+    @if (awaiting().length > 0) {
+      <section class="offers__group">
+        <h2 class="offers__group-title">Waiting on the teacher</h2>
+
+        <ul class="offers">
+          @for (row of awaiting(); track row.applicationId) {
+            <li class="card card--interactive offers__item">
+              <div class="offers__who">
+                <h3 class="offers__name">
+                  {{ row.teacherName }}
+                  @if (row.isVerified) {
+                    <ui-badge tone="success" size="sm">Verified</ui-badge>
+                  }
+                </h3>
+                <p class="offers__line">
+                  {{ row.jobTitle }} · {{ row.branchName }}
+                </p>
+                <p class="offers__line offers__line--muted">
+                  {{ experience(row.totalExperienceMonths) }} · applied
+                  {{ row.appliedOn | date: 'd MMM y' }}
+                </p>
+              </div>
+
+              <div class="offers__right">
+                <!--
+                  🔴 The APPLICATION's stage name, from the master. The offer
+                  document's own status is on the detail screen beside the
+                  offer — two machines, two places (2.73).
+                -->
+                <ui-badge [tone]="tone(row.applicationStatusId)" size="sm">
+                  {{ stageName()(row.applicationStatusId) }}
+                </ui-badge>
+
+                @if (canSeeDetail()) {
+                  <a class="btn btn--sm" [routerLink]="['/applicants', row.applicationId]">Open</a>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (accepted().length > 0) {
+      <section class="offers__group">
+        <!--
+          🔴 2.73's second step, as a heading. These people have accepted and
+          have NOT been recorded as hired — which is the distinction the whole
+          two-step design exists for, and the one a school needs to act on.
+        -->
+        <h2 class="offers__group-title">Accepted — confirm when they start</h2>
+
+        <ul class="offers">
+          @for (row of accepted(); track row.applicationId) {
+            <li class="card card--interactive offers__item">
+              <div class="offers__who">
+                <h3 class="offers__name">{{ row.teacherName }}</h3>
+                <p class="offers__line">{{ row.jobTitle }} · {{ row.branchName }}</p>
+              </div>
+
+              <div class="offers__right">
+                <ui-badge [tone]="tone(row.applicationStatusId)" size="sm">
+                  {{ stageName()(row.applicationStatusId) }}
+                </ui-badge>
+
+                @if (canSeeDetail()) {
+                  <a class="btn btn--sm" [routerLink]="['/applicants', row.applicationId]">Open</a>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (closed().length > 0) {
+      <section class="offers__group">
+        <h2 class="offers__group-title">Closed</h2>
+
+        <ul class="offers">
+          @for (row of closed(); track row.applicationId) {
+            <li class="card offers__item offers__item--past">
+              <div class="offers__who">
+                <h3 class="offers__name">{{ row.teacherName }}</h3>
+                <p class="offers__line offers__line--muted">
+                  {{ row.jobTitle }} · {{ row.branchName }}
+                </p>
+              </div>
+
+              <div class="offers__right">
+                <ui-badge [tone]="tone(row.applicationStatusId)" size="sm">
+                  {{ stageName()(row.applicationStatusId) }}
+                </ui-badge>
+
+                @if (canSeeDetail()) {
+                  <a class="btn btn--sm" [routerLink]="['/applicants', row.applicationId]">Open</a>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  }
+</div>

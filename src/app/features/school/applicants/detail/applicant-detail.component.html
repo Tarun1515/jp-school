@@ -292,8 +292,218 @@
                 You can read this application. Moving it along is done by your
                 school's HR and owner accounts.
               </p>
-            } @else {
+            } @else if (!canSendOffer() && !canHire() && liveOffer() === null) {
               <p class="note">There is nothing to do on this application right now.</p>
+            }
+
+            <!--
+              ================================================================
+              🔴 THE OFFER, WHICH IS A SECOND MACHINE (2.73)
+              ================================================================
+
+              An offer is a DOCUMENT (Sent → Accepted / Declined / Withdrawn);
+              the application above is where the CANDIDATE stands. They move in
+              one transaction and answer different questions, so they get
+              different controls — and the generic status buttons above now
+              filter stages 7..10 OUT, because those are only ever produced by
+              an action here.
+
+              ⚠️ Until 6C-2 that filter did not exist: a Selected application
+              drew an "Offer sent" button from the server's transition list and
+              clicking it returned 400 OFFER_ACTION_REQUIRED.
+            -->
+            @if (canSendOffer() && !offering()) {
+              <div class="applicant__buttons">
+                <button type="button" class="btn btn--primary" [disabled]="offerBusy()" (click)="openOfferForm()">
+                  Send an offer
+                </button>
+              </div>
+            }
+
+            @if (offering()) {
+              <div class="offer-form">
+                <h4 class="offer-form__title">The offer</h4>
+
+                <div class="offer-form__grid">
+                  <div>
+                    <label class="form-label" for="offer-salary">Salary a month</label>
+                    <input
+                      class="form-control"
+                      id="offer-salary"
+                      type="number"
+                      min="0"
+                      step="500"
+                      [(ngModel)]="offerSalary"
+                      name="offerSalary"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="form-label" for="offer-joining">Joining date</label>
+                    <input
+                      class="form-control"
+                      id="offer-joining"
+                      type="date"
+                      [(ngModel)]="offerJoining"
+                      name="offerJoining"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="form-label" for="offer-time">Reporting time</label>
+                    <input
+                      class="form-control"
+                      id="offer-time"
+                      type="time"
+                      [(ngModel)]="offerTime"
+                      name="offerTime"
+                    />
+                  </div>
+                </div>
+
+                <label class="form-label" for="offer-terms">Terms (optional)</label>
+                <textarea
+                  class="form-control"
+                  id="offer-terms"
+                  rows="3"
+                  maxlength="4000"
+                  placeholder="Probation, notice period, anything they should know before accepting."
+                  [(ngModel)]="offerTerms"
+                  name="offerTerms"
+                ></textarea>
+
+                <!--
+                  🔒 The teacher sees the salary, the date, the time and these
+                  terms. They do NOT see anything else your team records.
+                -->
+                <p class="field__helper">
+                  The teacher sees these details and can accept or decline. The
+                  designation comes from the posting.
+                </p>
+
+                <div class="applicant__buttons">
+                  <button type="button" class="btn" [disabled]="offerBusy()" (click)="closeOfferForm()">
+                    Cancel
+                  </button>
+                  <button type="button" class="btn btn--primary" [disabled]="offerBusy()" (click)="sendOffer()">
+                    {{ offerBusy() ? 'Sending …' : 'Send offer' }}
+                  </button>
+                </div>
+              </div>
+            }
+
+            @if (liveOffer(); as live) {
+              <div class="offer-live">
+                <p class="offer-live__head">
+                  <ui-badge [tone]="offerTone(live.offerStatusId)" size="sm">
+                    {{ live.offerStatusName }}
+                  </ui-badge>
+                  <span class="offer-live__meta">
+                    sent {{ live.sentOn | date: 'd MMM y' }}
+                    @if (live.sentByName) {
+                      by {{ live.sentByName }}
+                    }
+                  </span>
+                </p>
+
+                @if (withdrawing() === live.offerId) {
+                  <label class="form-label" for="withdraw-reason">
+                    Why are you withdrawing it? (your team's note)
+                  </label>
+                  <textarea
+                    class="form-control"
+                    id="withdraw-reason"
+                    rows="2"
+                    maxlength="1000"
+                    [(ngModel)]="withdrawReason"
+                    name="withdrawReason"
+                  ></textarea>
+
+                  <!--
+                    🔒 018 stores this and never sends it. The teacher is told
+                    the offer was withdrawn and nothing more — "we filled the
+                    post internally" is not a sentence anybody chose to say to
+                    them.
+                  -->
+                  <p class="field__helper">
+                    Kept for your team only. The teacher is told the offer was
+                    withdrawn, not why.
+                  </p>
+
+                  <div class="applicant__buttons">
+                    <button type="button" class="btn" [disabled]="offerBusy()" (click)="cancelWithdraw()">
+                      Keep the offer
+                    </button>
+                    <button type="button" class="btn btn--danger" [disabled]="offerBusy()" (click)="confirmWithdraw()">
+                      {{ offerBusy() ? 'Withdrawing …' : 'Withdraw it' }}
+                    </button>
+                  </div>
+                } @else if (canOffer()) {
+                  <div class="applicant__buttons">
+                    <button type="button" class="btn" [disabled]="offerBusy()" (click)="startWithdraw(live.offerId)">
+                      Withdraw the offer
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+
+            <!--
+              🔴 2.73's SECOND STEP. Accepting is not arriving, and confirming
+              it is gated on OFFER.APPROVE — a different permission from the one
+              that sends, because whoever negotiates a package is not
+              necessarily whoever signs off that somebody is on the payroll.
+            -->
+            @if (canHire()) {
+              <div class="applicant__buttons">
+                <button type="button" class="btn btn--primary" [disabled]="offerBusy()" (click)="confirmHire()">
+                  Confirm the hire
+                </button>
+              </div>
+              <p class="field__helper">
+                They have accepted. Confirm this once they have actually started.
+              </p>
+            }
+
+            <!--
+              ⚠️ The whole negotiation, not just the latest. 2.73 allows a new
+              offer after a decline, so an application may carry three — and
+              collapsing them would hide the back-and-forth the team had.
+            -->
+            @if (offerRows().length > 1 || (offerRows().length === 1 && liveOffer() === null)) {
+              <details class="offer-history">
+                <summary>Offer history ({{ offerRows().length }})</summary>
+
+                <ul class="offer-history__list">
+                  @for (o of offerRows(); track o.offerId) {
+                    <li class="offer-history__item">
+                      <ui-badge [tone]="offerTone(o.offerStatusId)" size="sm">
+                        {{ o.offerStatusName }}
+                      </ui-badge>
+
+                      <span>
+                        {{ o.sentOn | date: 'd MMM y' }}
+                        @if (o.offeredSalary !== null) {
+                          · ₹{{ o.offeredSalary }}
+                        }
+                        @if (o.respondedOn) {
+                          · answered {{ o.respondedOn | date: 'd MMM y' }}
+                        }
+                      </span>
+
+                      @if (o.teacherRemarks) {
+                        <span class="offer-history__said">They said: “{{ o.teacherRemarks }}”</span>
+                      }
+
+                      @if (o.withdrawalReason) {
+                        <span class="offer-history__said">
+                          Your note: {{ o.withdrawalReason }}
+                        </span>
+                      }
+                    </li>
+                  }
+                </ul>
+              </details>
             }
           </div>
         </section>

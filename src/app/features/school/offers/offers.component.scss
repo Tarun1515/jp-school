@@ -1,0 +1,75 @@
+@use 'variables' as v;
+@use 'mixins' as m;
+
+/*
+  ⚠️ The page, cards, badges, buttons, note and empty state are the design
+  system's (G27). What is here is this list's own row layout and grouping.
+*/
+
+.offers__group + .offers__group {
+  margin-top: v.$space-5;
+}
+
+.offers__group-title {
+  margin: 0 0 v.$space-3;
+  font-size: var(--jp-font-size-sm);
+  font-weight: var(--jp-font-weight-semibold, 600);
+  color: var(--jp-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.offers {
+  @include m.flex-column(v.$space-3);
+
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.offers__item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: v.$space-4;
+  flex-wrap: wrap;
+}
+
+/* Closed offers stay readable — the history is the point of keeping them. */
+.offers__item--past {
+  background: var(--jp-surface-alt);
+}
+
+.offers__who {
+  @include m.flex-column(0.125rem);
+
+  min-width: 0;
+  flex: 1 1 18rem;
+}
+
+.offers__name {
+  display: flex;
+  align-items: center;
+  gap: v.$space-2;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: var(--jp-font-size-md);
+  font-weight: var(--jp-font-weight-semibold, 600);
+  color: var(--jp-text);
+}
+
+.offers__line {
+  margin: 0;
+  font-size: var(--jp-font-size-sm);
+  color: var(--jp-text);
+
+  &--muted { color: var(--jp-text-muted); }
+}
+
+.offers__right {
+  display: flex;
+  align-items: center;
+  gap: v.$space-2;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}

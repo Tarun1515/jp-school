@@ -115,13 +115,33 @@ cd ../jp-backend/JP.Sso.Api && dotnet run
 
 ## Screens
 
+**Auth and onboarding**
+
 - Sign in, and school signup (single-purpose — no user-type toggle)
 - Forgot password, reset password, OTP verification
 - Accept invite / set first password (HR onboarding)
-- Account status — the verification wait
-- School shell
+- Account status — the verification wait, and the registration form behind it
 
-Phase 2F lands here.
+**The portal** (22 routed screens as of 6C-2, 1 still a placeholder)
+
+| Route | What it is |
+|---|---|
+| `/dashboard` | The school's own numbers, from the real counts |
+| `/profile` | School profile and documents |
+| `/branches` | Campuses. Hidden from the sidebar for a single-campus school |
+| `/jobs`, `/jobs/new`, `/jobs/:jobId` | Posting, publishing, closing. Posting is the consuming action |
+| `/applicants`, `/applicants/:applicationId` | The pipeline, and one applicant end to end |
+| `/teacher-search` | 🔒 Search and invite. **No contact detail appears here for any plan, flag or role** |
+| `/offers` | Offers out, grouped by what the school has to do next |
+| `/users` | Team and invitations |
+| `/notifications` | The full list. One shared component, routed by both portals |
+| `/account/documents` | ⬜ Routed, still `comingSoon` |
+
+> 🔒 **Contact details have exactly two unlock paths** (decision 2.56, LOCKED):
+> the teacher applies, or the teacher accepts an invitation. Viewing a profile
+> unlocks nothing, ignoring an invitation unlocks nothing, and the school's
+> payment status unlocks nothing, ever. Every contact render goes through
+> `fn_TeacherContactUnlocked` and nothing else.
 
 ---
 

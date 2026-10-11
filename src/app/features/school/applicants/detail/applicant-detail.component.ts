@@ -2,7 +2,7 @@ import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { AuthService, MasterService, ToastService } from 'jp-shared/core';
+import { AuthService, ConfirmDialogService, MasterService, ToastService } from 'jp-shared/core';
 import { Lookup, MASTER_KEYS } from 'jp-shared/models';
 import {
   UiBadgeComponent,
@@ -18,6 +18,7 @@ import {
   ApplicantService,
   applicantRefusalMessage,
 } from '../../../../core/applicant.service';
+import { OFFER_STATUS, OfferService, SchoolOffer } from '../../../../core/offer.service';
 
 /**
  * One applicant, in full. 🔒 THE CONTACT BOUNDARY IS ON THIS SCREEN.
@@ -91,6 +92,13 @@ export class ApplicantDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
+  /*
+    ⚠️ Added in 6C-2. Confirming a hire is 2.73's separate second step and the
+    one action on this screen that deserves a dialog — the others are
+    reversible or already behind a reason box.
+  */
+  private readonly confirm = inject(ConfirmDialogService);
+
   protected readonly STATUS = APPLICATION_STATUS;
 
   protected readonly data = signal<ApplicantDetail | null>(null);
@@ -161,6 +169,13 @@ export class ApplicantDetailComponent {
     this.loading.set(true);
     this.notFound.set(false);
 
+    /*
+      ⚠️ The offers load alongside, not inside the detail's subscribe: they are
+      a separate read on a separate endpoint, and the application must render
+      whether or not that one answers.
+    */
+    this.loadOffers(applicationId);
+
     this.applicants.get(applicationId).subscribe({
       next: (detail) => {
         this.data.set(detail);
@@ -220,10 +235,260 @@ export class ApplicantDetailComponent {
 
     if (!detail) return [];
 
-    return detail.allowedTransitions.filter((t) =>
-      t.code === 'REJECTED' ? this.canReject() : this.canShortlist(),
-    );
+    return detail.allowedTransitions
+      /*
+        🔴 OFFER STAGES ARE NOT STATUS PICKS — AND THIS LINE FIXES A LIVE BUG.
+
+        2.73's map legitimately permits 5 → 7 (Selected → OfferSent), so a
+        Selected application's allowedTransitions contains OFFER_SENT. But the
+        generic status endpoint refuses 7..10 with OFFER_ACTION_REQUIRED,
+        because those stages are only ever produced by an offer action that
+        writes the offer row in the same transaction — otherwise a school could
+        mark somebody Hired with nobody having accepted anything.
+
+        ⚠️ From 6A until 6C-2 this list was rendered unfiltered, so a Selected
+        application showed an "Offer sent" button and clicking it returned a
+        400. The comment above says "either alone would draw a button that
+        produces a refusal"; that is exactly what shipped, and it was found by
+        walking an application to Selected and looking at the screen.
+
+        Stages 7..10 now have their own controls below, which call the offer
+        endpoints.
+      */
+      .filter((t) => t.applicationStatusId < 7)
+      .filter((t) => (t.code === 'REJECTED' ? this.canReject() : this.canShortlist()));
   });
+
+  /* ---- offers (6C-2) --------------------------------------------------- */
+
+  private readonly offers = inject(OfferService);
+
+  protected readonly offerRows = signal<SchoolOffer[]>([]);
+  protected readonly offering = signal(false);
+  protected readonly offerBusy = signal(false);
+
+  /** The offer form. Designation defaults to the one the job asked for. */
+  protected readonly offerSalary = signal<number | null>(null);
+  protected readonly offerJoining = signal<string | null>(null);
+  protected readonly offerTime = signal<string | null>(null);
+  protected readonly offerTerms = signal('');
+  protected readonly withdrawReason = signal('');
+  protected readonly withdrawing = signal<number | null>(null);
+
+  protected readonly OFFER = OFFER_STATUS;
+
+  /**
+   * 🔴 TWO PERMISSIONS, AND THE SPLIT IS THE POINT.
+   *
+   * OFFER.CREATE sends; OFFER.APPROVE confirms somebody actually started.
+   * Whoever negotiates a package is not necessarily whoever signs off that a
+   * teacher is on the payroll.
+   */
+  protected readonly canOffer = computed(() => this.auth.hasPermission('OFFER.CREATE'));
+  protected readonly canConfirmHire = computed(() => this.auth.hasPermission('OFFER.APPROVE'));
+
+  /** The live offer, if there is one — at most one per application (026). */
+  protected readonly liveOffer = computed(() => this.offerRows().find((o) => o.isLive) ?? null);
+
+  /** Selected, no live offer: the stage where sending one is the next step. */
+  protected readonly canSendOffer = computed(() =>
+    this.canOffer() && this.data()?.applicationStatusId === 5 && this.liveOffer() === null);
+
+  /** OfferAccepted: the stage where confirming the hire is the next step. */
+  protected readonly canHire = computed(() =>
+    this.canConfirmHire() && this.data()?.applicationStatusId === 8);
+
+  private loadOffers(applicationId: number): void {
+    this.offers.forApplication(applicationId).subscribe({
+      next: (rows: SchoolOffer[]) => this.offerRows.set(rows),
+
+      /*
+        ⚠️ Swallowed. The offer list is extra context beside an application that
+        has already rendered; a toast about it would be noise over a screen that
+        is working. The actions read `liveOffer()`, which stays null, so nothing
+        is offered on a guess.
+      */
+      error: () => this.offerRows.set([]),
+    });
+  }
+
+  protected openOfferForm(): void {
+    const detail = this.data();
+    if (!detail) return;
+
+    this.offerSalary.set(null);
+    this.offerJoining.set(null);
+    this.offerTime.set(null);
+    this.offerTerms.set('');
+    this.offering.set(true);
+  }
+
+  protected closeOfferForm(): void {
+    this.offering.set(false);
+  }
+
+  protected sendOffer(): void {
+    const detail = this.data();
+    if (!detail || this.offerBusy()) return;
+
+    this.offerBusy.set(true);
+
+    this.offers
+      .send(detail.applicationId, {
+        /*
+          ⚠️ The job's designation, not a separate pick. An offer for a
+          different role than the posting is a different conversation, and the
+          procedure requires one — so it comes from the application rather than
+          from a field somebody can mistype.
+        */
+        designationId: detail.designationId,
+        offeredSalary: this.offerSalary(),
+        joiningDate: this.offerJoining(),
+
+        /*
+          🔴 "09:00" -> "09:00:00", AND WITHOUT THIS THE WHOLE SEND IS REFUSED.
+
+          <input type="time"> yields HH:mm. The column is time(0) and the DTO is
+          a TimeSpan?, whose model binder wants HH:mm:ss — so an offer carrying
+          a reporting time came back "One or more fields are invalid." and the
+          application never moved.
+
+          ⚠️ It was invisible until a test filled the field. The first probe of
+          this screen left the time blank and the send succeeded, so the screen
+          looked finished; offer-screens.mjs filled all three and the whole
+          thing failed. A field nobody exercises is a field nobody has tested.
+        */
+        reportingTime: this.normaliseTime(this.offerTime()),
+        termsAndConditions: this.offerTerms().trim() || null,
+      })
+      .subscribe({
+        next: () => {
+          this.offerBusy.set(false);
+          this.offering.set(false);
+          this.toast.success('Offer sent.');
+
+          /*
+            🔴 RE-READ BOTH. The offer row and the application's stage move in
+            one transaction (018), so reading one and patching the other is how
+            the two start to disagree — 5B's lesson.
+          */
+          this.load(detail.applicationId);
+        },
+        error: (error: unknown) => {
+          this.offerBusy.set(false);
+
+          const message = (error as { error?: { message?: string } })?.error?.message
+            ?? 'The offer could not be sent.';
+
+          /*
+            ⚠️ ALREADY_OFFERED is reachable by a double-click — the filtered
+            index refuses a second live offer (026). The server's sentence says
+            so, and re-reading puts the screen in step.
+          */
+          this.toast.error(message);
+          this.load(detail.applicationId);
+        },
+      });
+  }
+
+  protected startWithdraw(offerId: number): void {
+    this.withdrawReason.set('');
+    this.withdrawing.set(offerId);
+  }
+
+  protected cancelWithdraw(): void {
+    this.withdrawing.set(null);
+  }
+
+  protected confirmWithdraw(): void {
+    const offerId = this.withdrawing();
+    const detail = this.data();
+    if (offerId === null || detail === null || this.offerBusy()) return;
+
+    this.offerBusy.set(true);
+
+    this.offers.withdraw(offerId, this.withdrawReason()).subscribe({
+      next: () => {
+        this.offerBusy.set(false);
+        this.withdrawing.set(null);
+
+        /*
+          ⚠️ The application goes back to Selected (2.73), which makes a
+          re-offer the first case again rather than a special one. Said in the
+          toast so the team knows where the candidate now sits.
+        */
+        this.toast.success('Offer withdrawn. The candidate is back at Selected.');
+        this.load(detail.applicationId);
+      },
+      error: (error: unknown) => {
+        this.offerBusy.set(false);
+        this.toast.error((error as { error?: { message?: string } })?.error?.message
+          ?? 'The offer could not be withdrawn.');
+        this.load(detail.applicationId);
+      },
+    });
+  }
+
+  protected async confirmHire(): Promise<void> {
+    const detail = this.data();
+    if (!detail || this.offerBusy()) return;
+
+    const ok = await this.confirm.ask({
+      title: 'Confirm this hire?',
+
+      /*
+        🔴 2.73 KEPT THIS AS A SEPARATE STEP ON PURPOSE, and the dialog says
+        why: accepting is not arriving. This is the number a school may one day
+        be asked to stand behind, so it is a deliberate act rather than a
+        consequence of the teacher clicking Accept.
+      */
+      message:
+        'This records that the teacher has actually joined — it is not the same as them accepting. '
+        + 'Confirm it when they have started.',
+      confirmText: 'Yes, they have joined',
+    });
+
+    if (!ok) return;
+
+    this.offerBusy.set(true);
+
+    this.offers.confirmHire(detail.applicationId, null).subscribe({
+      next: () => {
+        this.offerBusy.set(false);
+        this.toast.success('Marked as hired.');
+        this.load(detail.applicationId);
+      },
+      error: (error: unknown) => {
+        this.offerBusy.set(false);
+        this.toast.error((error as { error?: { message?: string } })?.error?.message
+          ?? 'That could not be saved.');
+        this.load(detail.applicationId);
+      },
+    });
+  }
+
+  /**
+   * HH:mm from the browser -> HH:mm:ss for the TimeSpan binder.
+   *
+   * ⚠️ Returns null for an empty value rather than "00:00:00": midnight is a
+   * real reporting time and "not stated" is not it.
+   */
+  private normaliseTime(value: string | null): string | null {
+    if (!value) return null;
+
+    const parts = value.split(':');
+
+    return parts.length === 2 ? `${value}:00` : value;
+  }
+
+  /** The badge's tone, from the stored id — never the display text (2.21). */
+  protected offerTone(statusId: number): 'info' | 'success' | 'neutral' | 'warning' {
+    if (statusId === OFFER_STATUS.accepted) return 'success';
+    if (statusId === OFFER_STATUS.sent) return 'info';
+    if (statusId === OFFER_STATUS.withdrawn) return 'warning';
+
+    return 'neutral';
+  }
 
   /**
    * True when the application can still move but this user may not move it.

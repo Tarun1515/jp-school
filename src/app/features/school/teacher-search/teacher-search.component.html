@@ -186,9 +186,16 @@
                 🔴 Earnable as of 6C-2-0. Before that every badge in the product
                 was seed data (G37) — a teacher could not get one however
                 complete their profile was.
+
+                ⚠️ `tone`, NOT `variant`. The first version of this wrote
+                variant="success", which is not an input on ui-badge — so it
+                compiled happily, was ignored, and the badge rendered in the
+                default neutral grey. Exactly G30's shape: a static attribute
+                that looks like a binding and does nothing. `[tone]="…"` would
+                have failed on day one; a bare attribute never does.
               -->
               @if (row.isVerified) {
-                <ui-badge variant="success" size="sm">Verified</ui-badge>
+                <ui-badge tone="success" size="sm">Verified</ui-badge>
               }
             </h2>
 
@@ -290,7 +297,7 @@
     <p class="invite__who">
       <strong>{{ row.fullName }}</strong>
       @if (row.isVerified) {
-        <ui-badge variant="success" size="sm">Verified</ui-badge>
+        <ui-badge tone="success" size="sm">Verified</ui-badge>
       }
     </p>
 
