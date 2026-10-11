@@ -1,0 +1,336 @@
+<div class="page enter">
+  <header class="page__header">
+    <div class="page__heading">
+      <h1 class="page__title">Find teachers</h1>
+      <p class="page__description">
+        Search the teacher base and invite somebody to apply.
+        <!--
+          🔒 Said on the screen, not just enforced in the code. A school that
+          understands why there is no phone number here stops looking for one —
+          and a school that does not will ask support for it every week.
+        -->
+        You will see a teacher's contact details once they apply to one of your
+        jobs, or accept an invitation from you.
+      </p>
+    </div>
+  </header>
+
+  <!--
+    🔴 2.62 AT SCREEN LEVEL — "NOT ALLOWED" for the whole thing.
+
+    A school VIEWER does not hold TEACHER_SEARCH.VIEW. They are never offered
+    the link, but a typed URL used to draw the full form, fire a request, take
+    a 403, and print "No teacher matches those filters" — telling somebody the
+    teacher base is empty when the truth is they may not look at it.
+
+    So they get one explanation and no form. Everything below is inside the
+    @else, including the search itself.
+  -->
+  @if (!canSearch()) {
+    <ui-empty-state
+      icon="🔒"
+      title="Teacher search is not part of your access"
+      message="Your school's owner and HR accounts can search the teacher base and send invitations. You can still see everybody who has applied to your jobs."
+      actionLabel="Go to applicants"
+      actionLink="/applicants"
+    />
+  } @else {
+
+  <!--
+    🔴 2.62 — "NOT ALLOWED" for the INVITE only: the control is ABSENT and one
+    line says who can.
+
+    A greyed-out invite button here would read as "try again later", which is
+    false. This person will never be able to invite without the permission, and
+    saying so is kinder than a disabled control they will keep clicking.
+  -->
+  @if (!canInvite()) {
+    <p class="banner banner--info" role="status">
+      You can search and read profiles here. Inviting teachers is done by your
+      school's HR and owner accounts.
+    </p>
+  }
+
+  <!--
+    🔴 "NOT YET": the plan's invitations are spent, or the plan does not include
+    search at all. The server's own sentence, because it names the period and
+    what resets it.
+  -->
+  @if (quotaSpent() && quotaMessage()) {
+    <p class="banner banner--warning" role="status">{{ quotaMessage() }}</p>
+  }
+
+  <!-- Every filter from a master table (2.7). Nothing hardcoded. -->
+  <form class="page__toolbar" (ngSubmit)="applyFilters()">
+    <div class="page__toolbar__control">
+      <label class="visually-hidden" for="f-subject">Subject</label>
+      <select class="form-control" id="f-subject" [(ngModel)]="subjectId" name="subjectId">
+        <option [ngValue]="null">Any subject</option>
+        @for (s of subjects(); track s.id) {
+          <option [ngValue]="s.id">{{ s.name }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="page__toolbar__control">
+      <label class="visually-hidden" for="f-designation">Designation</label>
+      <select class="form-control" id="f-designation" [(ngModel)]="designationId" name="designationId">
+        <option [ngValue]="null">Any designation</option>
+        @for (d of designations(); track d.id) {
+          <option [ngValue]="d.id">{{ d.name }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="page__toolbar__control">
+      <label class="visually-hidden" for="f-experience">Experience</label>
+      <select class="form-control" id="f-experience" [(ngModel)]="experienceRangeId" name="experienceRangeId">
+        <option [ngValue]="null">Any experience</option>
+        @for (e of experienceRanges(); track e.id) {
+          <option [ngValue]="e.id">{{ e.name }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="page__toolbar__control">
+      <label class="visually-hidden" for="f-qualification">Qualification</label>
+      <select class="form-control" id="f-qualification" [(ngModel)]="qualificationId" name="qualificationId">
+        <option [ngValue]="null">Any qualification</option>
+        @for (q of qualifications(); track q.id) {
+          <option [ngValue]="q.id">{{ q.name }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="page__toolbar__control">
+      <label class="visually-hidden" for="f-class-level">Class level</label>
+      <select class="form-control" id="f-class-level" [(ngModel)]="classLevelId" name="classLevelId">
+        <option [ngValue]="null">Any class level</option>
+        @for (c of classLevels(); track c.id) {
+          <option [ngValue]="c.id">{{ c.name }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="page__toolbar__control">
+      <label class="visually-hidden" for="f-state">State</label>
+      <select class="form-control" id="f-state" [(ngModel)]="stateId" name="stateId">
+        <option [ngValue]="null">Anywhere</option>
+        @for (st of states(); track st.id) {
+          <option [ngValue]="st.id">{{ st.name }}</option>
+        }
+      </select>
+    </div>
+
+    <!--
+      ⚠️ A FILTER, NOT A GATE (2.9, locked). Verification is a signal: an
+      unverified teacher is a real teacher who has not sent documents yet, and
+      a school that wants to narrow to verified profiles may — but the default
+      is off, because defaulting it on would quietly hide most of the base.
+    -->
+    <label class="page__toolbar__toggle">
+      <input type="checkbox" [(ngModel)]="verifiedOnly" name="verifiedOnly" />
+      Verified only
+    </label>
+
+    <button type="submit" class="btn btn--primary btn--sm">Search</button>
+    <button type="button" class="btn btn--sm page__toolbar__clear" (click)="clearFilters()">Clear</button>
+  </form>
+
+  <!--
+    🔴 The server refused the search itself — plan or permission. An answer, not
+    a breakage, and said in the server's own words.
+  -->
+  @if (refused() && refusedMessage()) {
+    <p class="banner banner--warning" role="status">{{ refusedMessage() }}</p>
+  }
+
+  <!--
+    ⚠️ Rendered only when there is something TRUE to say. It used to print "no
+    teacher matches" over the top of an error note.
+  -->
+  @if (resultSummary(); as summary) {
+    <p class="search__summary" role="status">{{ summary }}</p>
+  }
+
+  @if (loading()) {
+    <p class="table__loading">Searching …</p>
+  } @else if (failed()) {
+    <!--
+      🔴 A FAILED SEARCH IS NOT AN EMPTY ONE. "Nobody matches" and "we could not
+      ask" are different sentences, and showing the first when the second is
+      true is how a school concludes the teacher base is empty.
+    -->
+    <p class="note" role="alert">
+      The search could not be run. Nothing has been changed — try again in a moment.
+    </p>
+  } @else if (refused()) {
+    <!-- The banner above already said it. Nothing else to draw. -->
+  } @else if (rows().length === 0) {
+    <ui-empty-state
+      icon="🔍"
+      title="No teacher matches those filters"
+      message="Try widening the experience range or clearing the subject. Teachers who have not finished their profile are harder to find — they appear once they add a subject."
+      actionLabel="Clear filters"
+      (action)="clearFilters()"
+    />
+  } @else {
+    <ul class="results">
+      @for (row of rows(); track row.teacherUid) {
+        <li class="card card--interactive results__item">
+          <div class="results__who">
+            <h2 class="results__name">
+              {{ row.fullName }}
+
+              <!--
+                🔴 Earnable as of 6C-2-0. Before that every badge in the product
+                was seed data (G37) — a teacher could not get one however
+                complete their profile was.
+              -->
+              @if (row.isVerified) {
+                <ui-badge variant="success" size="sm">Verified</ui-badge>
+              }
+            </h2>
+
+            <p class="results__line">
+              {{ lookupName(designations(), row.designationId) ?? 'Teacher' }}
+              @if (row.highestQualificationText) {
+                · {{ row.highestQualificationText }}
+              } @else if (lookupName(qualifications(), row.qualificationId); as q) {
+                · {{ q }}
+              }
+            </p>
+
+            <p class="results__line results__line--muted">
+              {{ experience(row.totalExperienceMonths) }}
+              @if (row.currentSchool) {
+                · currently at {{ row.currentSchool }}
+              }
+              @if (lookupName(states(), row.currentStateId); as st) {
+                · {{ st }}
+              }
+            </p>
+
+            @if (row.expectedSalaryMin !== null || row.expectedSalaryMax !== null) {
+              <p class="results__line results__line--muted">
+                Expects
+                @if (row.expectedSalaryMin !== null && row.expectedSalaryMax !== null) {
+                  ₹{{ row.expectedSalaryMin }}–{{ row.expectedSalaryMax }}
+                } @else {
+                  ₹{{ row.expectedSalaryMin ?? row.expectedSalaryMax }}
+                }
+                a month
+              </p>
+            }
+          </div>
+
+          <div class="results__action">
+            <!--
+              🔴 2.62's "not yet". The control STAYS and is disabled, with the
+              reason beside it — an open invitation, an existing application, or
+              a spent quota are three different waits and the school needs to
+              know which.
+            -->
+            @if (canInvite()) {
+              @if (inviteBlockedBecause(row); as reason) {
+                <button type="button" class="btn btn--sm" disabled>Invite</button>
+                <p class="results__reason">{{ reason }}</p>
+              } @else {
+                <button type="button" class="btn btn--primary btn--sm" (click)="openInvite(row)">
+                  Invite
+                </button>
+              }
+            } @else if (row.hasApplied) {
+              <!--
+                ⚠️ Still worth saying to somebody who cannot invite: it tells
+                them where to go instead.
+              -->
+              <p class="results__reason">They have applied to you.</p>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+
+    <!-- Server-side pager. G29: never a client-side slice under a cap. -->
+    @if (totalPages() > 1) {
+      <nav class="table-pager" aria-label="Results pages">
+        <button type="button" class="btn btn--sm" [disabled]="pageNumber() === 1" (click)="page(-1)">
+          Previous
+        </button>
+
+        <span class="table-pager__state">Page {{ pageNumber() }} of {{ totalPages() }}</span>
+
+        <button
+          type="button"
+          class="btn btn--sm"
+          [disabled]="pageNumber() === totalPages()"
+          (click)="page(1)"
+        >
+          Next
+        </button>
+      </nav>
+    }
+  }
+
+  }
+</div>
+
+<!--
+  The invite. 🔒 A message and a campus — there is no email field, because the
+  school does not have one and will not get one unless this teacher accepts.
+-->
+<ui-modal
+  [open]="inviting() !== null"
+  title="Invite this teacher to apply"
+  size="md"
+  (closed)="closeInvite()"
+>
+  @if (inviting(); as row) {
+    <p class="invite__who">
+      <strong>{{ row.fullName }}</strong>
+      @if (row.isVerified) {
+        <ui-badge variant="success" size="sm">Verified</ui-badge>
+      }
+    </p>
+
+    <label class="form-label" for="invite-message">Your message (optional)</label>
+    <textarea
+      class="form-control"
+      id="invite-message"
+      rows="4"
+      maxlength="1000"
+      placeholder="Tell them what the role is and why you thought of them."
+      [(ngModel)]="message"
+      name="message"
+    ></textarea>
+
+    <!--
+      🔒 The honest sentence about what this does. A school writing to a
+      stranger should know the platform carries the message and that the
+      teacher's answer is what decides anything.
+    -->
+    <p class="note invite__note">
+      They will see your school's name and this message. You will be able to
+      contact them directly only if they accept.
+      <!--
+        🔴 And that it COSTS, said before the click rather than after the
+        refusal. The exact allowance is the plan's and the server's to know; the
+        fact that there is one belongs here.
+      -->
+      Invitations are part of your plan's monthly allowance.
+    </p>
+  }
+
+  <div class="modal__footer">
+    <button type="button" class="btn" (click)="closeInvite()">Cancel</button>
+    <button
+      type="button"
+      class="btn btn--primary"
+      [disabled]="sending() || branchId() === null"
+      (click)="send()"
+    >
+      {{ sending() ? 'Sending …' : 'Send invitation' }}
+    </button>
+  </div>
+</ui-modal>

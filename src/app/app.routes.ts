@@ -247,7 +247,27 @@ export const routes: Routes = [
       },
 
 
-      { path: 'teacher-search', loadComponent: comingSoon, data: { title: 'Find teachers' } },
+      /*
+        Phase 6C-2 — 🔒 find teachers, and consent path 2's school side.
+
+        ⚠️ NOT permission-guarded here, like /jobs and /applicants: the seeded
+        SCHOOL_TEACHER_SEARCH row carries TEACHER_SEARCH.VIEW so only people who
+        hold it are offered the link, and the server refuses the search
+        regardless of how somebody arrived. A guard would be a third place the
+        same rule lives.
+
+        🔴 The screen itself still has to know about TEACHER_SEARCH.INVITE,
+        which is a DIFFERENT permission — one of the two costs. 2.62's two cases
+        are both on that screen for exactly that reason.
+      */
+      {
+        path: 'teacher-search',
+        loadComponent: () =>
+          import('./features/school/teacher-search/teacher-search.component').then(
+            (m) => m.TeacherSearchComponent,
+          ),
+        data: { title: 'Find teachers' },
+      },
       { path: 'offers', loadComponent: comingSoon, data: { title: 'Offers' } },
       {
         /*

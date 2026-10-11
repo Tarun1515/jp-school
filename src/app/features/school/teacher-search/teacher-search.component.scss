@@ -1,0 +1,98 @@
+@use 'variables' as v;
+@use 'mixins' as m;
+
+/*
+  ⚠️ Almost nothing here, deliberately. The page, the toolbar, the cards, the
+  pager, the note and the badge all come from the design system — G27's whole
+  lesson was that a screen writing its own chrome is a screen that drifts from
+  the other six. What is left is the result row's own layout.
+*/
+
+.search__summary {
+  margin: 0;
+  color: var(--jp-text-muted);
+  font-size: var(--jp-font-size-sm);
+}
+
+.results {
+  @include m.flex-column(v.$space-3);
+
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+  Name and experience on the left, the action on the right — and it stacks
+  below md, because at 375 a side-by-side row would squeeze the name to three
+  characters.
+*/
+.results__item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: v.$space-4;
+  flex-wrap: wrap;
+}
+
+.results__who {
+  @include m.flex-column(0.125rem);
+
+  min-width: 0;
+  flex: 1 1 18rem;
+}
+
+.results__name {
+  display: flex;
+  align-items: center;
+  gap: v.$space-2;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: var(--jp-font-size-md);
+  font-weight: var(--jp-font-weight-semibold, 600);
+  color: var(--jp-text);
+}
+
+.results__line {
+  margin: 0;
+  font-size: var(--jp-font-size-sm);
+  color: var(--jp-text);
+
+  &--muted { color: var(--jp-text-muted); }
+}
+
+.results__action {
+  @include m.flex-column(v.$space-1);
+
+  align-items: flex-end;
+  flex: 0 0 auto;
+
+  /*
+    ⚠️ The reason sits under the control and is allowed to wrap to a readable
+    width. A disabled button with no explanation is the 2.62 failure this
+    screen exists to avoid.
+  */
+  max-width: 16rem;
+  text-align: right;
+}
+
+.results__reason {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: var(--jp-line-height-snug);
+  color: var(--jp-text-muted);
+}
+
+/* ---- the invite modal ---------------------------------------------------- */
+
+.invite__who {
+  display: flex;
+  align-items: center;
+  gap: v.$space-2;
+  margin: 0 0 v.$space-3;
+  font-size: var(--jp-font-size-md);
+}
+
+.invite__note {
+  margin-top: v.$space-3;
+}
