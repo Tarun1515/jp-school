@@ -35,19 +35,16 @@
   🔴 The locked banner. Warning-toned, not danger — nothing is wrong, and a red
   bar would read as an error on a form the person opened deliberately.
 */
-.banner {
-  padding: v.$space-3 v.$space-4;
-  margin-bottom: v.$space-4;
-  border-radius: var(--jp-radius-lg);
-  font-size: var(--jp-font-size-sm);
-  line-height: var(--jp-line-height-relaxed);
+/*
+  ⚠️ `.banner` comes from the design system now (G27). It has no outer margin,
+  and this screen is not inside a `.page`, so the gap is stated here.
 
-  &--locked {
-    background: var(--jp-warning-soft);
-    border: 1px solid var(--jp-warning);
-    color: var(--jp-text);
-  }
-}
+  🔴 `--locked` became `--warning` in the same commit. The old name described
+  THIS screen's story; the modifier has to describe severity, or the next screen
+  with a different story writes a fourth copy — which is how there came to be
+  three.
+*/
+.banner { margin-bottom: v.$space-4; }
 
 .form { display: grid; gap: v.$space-4; }
 

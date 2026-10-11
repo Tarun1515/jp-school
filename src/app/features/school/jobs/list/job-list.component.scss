@@ -24,47 +24,25 @@
   font-size: var(--jp-font-size-sm);
 }
 
-.banner {
-  padding: v.$space-3 v.$space-4;
-  margin-bottom: v.$space-4;
-  border-radius: var(--jp-radius-lg);
-  font-size: var(--jp-font-size-sm);
+/*
+  ⚠️ THE ONLY THING LEFT LOCAL, AND IT IS DELIBERATE — G27.
 
-  &--info {
-    background: var(--jp-info-soft);
-    border: 1px solid var(--jp-info);
-    color: var(--jp-text);
-  }
-}
+  `.tabs` and `.banner` now come from the design system with no outer margin,
+  because a component that imposes margin cannot be placed (see _tabs.scss).
+  This screen is not wrapped in `.page`, so nothing above it supplies a gap and
+  these two lines are load-bearing.
 
-.tabs {
-  display: flex;
-  gap: v.$space-1;
-  margin-bottom: v.$space-4;
-  border-bottom: 1px solid var(--jp-border);
-  overflow-x: auto;
-}
+  🔴 This screen also contributed the two properties the shared version kept
+  over the other copies' objections — `overflow-x: auto` and
+  `white-space: nowrap` — because six status tabs scroll at 375 and two never
+  do. The majority was wrong there.
 
-.tabs__tab {
-  @include m.focus-ring;
-
-  padding: v.$space-2 v.$space-4;
-  background: none;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  color: var(--jp-text-muted);
-  font-size: var(--jp-font-size-sm);
-  font-weight: var(--jp-font-weight-medium);
-  white-space: nowrap;
-  cursor: pointer;
-
-  &:hover { color: var(--jp-text); }
-
-  &--active {
-    border-bottom-color: var(--jp-primary);
-    color: var(--jp-text);
-  }
-}
+  The real follow-up is to put this screen inside `.page` like the verification
+  queue does, and delete these. That is a layout change with its own visual
+  risk, so it is not being smuggled into 6C.
+*/
+.tabs { margin-bottom: v.$space-4; }
+.banner { margin-bottom: v.$space-4; }
 
 .state {
   padding: v.$space-6;
