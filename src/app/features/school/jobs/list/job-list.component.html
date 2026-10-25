@@ -1,3 +1,36 @@
+<!--
+  🔴 SR-4: THE QUOTA WALL, WHERE IT HAPPENED.
+
+  A publish refused for quota used to be a toast and nothing else: the school
+  read "your plan's job posts are used up", closed it, and had no route
+  forward except hunting for a billing page in the sidebar.
+
+  ⚠️ IT IS A BANNER, NOT A REDIRECT. Throwing somebody to a pricing page
+  because their action failed takes the decision out of their hands — plenty
+  simply meant to post the job next month. It stays on the page the refusal
+  happened on, and going is their choice.
+
+  ⚠️ IT SAYS THE JOB IS SAFE FIRST. The most urgent question after a refused
+  publish is "did I lose my work", and the answer is no — it is a draft.
+  Leading with the upsell answers the question nobody asked.
+-->
+@if (quotaWall()) {
+  <div class="banner banner--warning" role="status">
+    <div>
+      <strong>Your plan's job posts are used up for this period.</strong>
+      <p>
+        Your job is safe as a draft — nothing was lost, and publishing it later
+        costs nothing extra.
+      </p>
+      <p>
+        <button type="button" class="btn btn--primary btn--sm" (click)="seePlans()">
+          See the plans
+        </button>
+      </p>
+    </div>
+  </div>
+}
+
 <header class="page__head">
   <div>
     <h1 class="page__title">Jobs</h1>

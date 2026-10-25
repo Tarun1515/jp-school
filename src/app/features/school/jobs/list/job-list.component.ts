@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { AuthService, ConfirmDialogService, ToastService } from 'jp-shared/core';
+import { AuthService, ConfirmDialogService, ToastService , UpgradeService } from 'jp-shared/core';
 import { UiBadgeComponent, UiEmptyStateComponent } from 'jp-shared/ui';
 
 import { JOB_STATUS, JobListItem, JobService, jobRefusalMessage } from '../../../../core/job.service';
@@ -57,6 +57,10 @@ export class JobListComponent {
   private readonly jobs = inject(JobService);
   private readonly auth = inject(AuthService);
   private readonly toast = inject(ToastService);
+
+  /* SR-4. Every route to the plans goes through this, so the page they were
+     refused on is what they come back to. */
+  private readonly upgrade = inject(UpgradeService);
   private readonly confirm = inject(ConfirmDialogService);
   private readonly router = inject(Router);
 
@@ -136,6 +140,26 @@ export class JobListComponent {
     this.router.navigate(['/jobs', row.jobId]);
   }
 
+  /**
+   * Shown once a publish has been refused for quota, until the page changes.
+   *
+   * ⚠️ A SIGNAL, NOT A TOAST FLAG. A toast is gone in five seconds and this is
+   * the state the account is actually in — it should still be on screen when
+   * they come back from reading the plans and have not paid yet.
+   */
+  protected readonly quotaWall = signal(false);
+
+  /**
+   * To the plans, remembering this page.
+   *
+   * 🔴 THROUGH UpgradeService, which captures the current URL so the billing
+   * page can offer "back to what you were doing". A plain routerLink would
+   * lose that, and the half-finished job with it.
+   */
+  protected seePlans(): void {
+    this.upgrade.showPlans();
+  }
+
   protected publish(row: JobListItem): void {
     this.busy.set(row.jobId);
 
@@ -171,6 +195,27 @@ export class JobListComponent {
         const code = err?.error?.code ?? null;
 
         this.toast.error(jobRefusalMessage(code, 'That job could not be published.'));
+
+        /*
+          🔴 SR-4: A QUOTA WALL IS A PLACE TO OFFER A PLAN, NOT JUST A MESSAGE.
+
+          The toast already says the job is safe as a draft and the plan is
+          spent. What it could not say before is "here is what to do about
+          it" — so the school read a refusal, closed the toast and had no
+          route forward except hunting for a billing page in the sidebar.
+
+          ⚠️ A BANNER, NOT A REDIRECT. Throwing somebody to a pricing page
+          because an action failed takes the decision out of their hands;
+          several will simply have meant to post the job next month. The
+          banner persists on the page the refusal happened on, and going is
+          their choice.
+
+          ⚠️ ONLY FOR QUOTA_EXHAUSTED. A validation failure or a lapsed
+          subscription are different problems with different answers, and
+          offering a plan upgrade for either would be selling to somebody
+          whose issue it does not fix.
+        */
+        this.quotaWall.set(code === 'QUOTA_EXHAUSTED');
       },
     });
   }
