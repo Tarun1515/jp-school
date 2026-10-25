@@ -136,6 +136,23 @@ export class RegistrationService {
    * but it never invents its own — two rules that can disagree is one rule too
    * many, and the one that would win is the one nobody sees.
    */
+  /**
+   * The school's logo or photo, uploaded during registration (SR-3).
+   *
+   * ⚠️ Returns the stored PATH and saves nothing. The draft is the single
+   * source of truth for a registration (2.50), so the caller sends this back
+   * on the next draft save — writing it server-side here would make two
+   * writers for one fact.
+   */
+  uploadLogo(file: File): Observable<string> {
+    const body = new FormData();
+    body.append('file', file);
+
+    return this.http
+      .post<ApiResponse<{ logoPath: string }>>(`${this.baseUrl}/draft/logo`, body)
+      .pipe(map((r) => r.data?.logoPath ?? ''));
+  }
+
   upload(requestId: number, documentTypeId: number, file: File): Observable<UploadResult> {
     const form = new FormData();
     form.append('requestId', String(requestId));

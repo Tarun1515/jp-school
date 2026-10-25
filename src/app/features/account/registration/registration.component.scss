@@ -241,3 +241,29 @@
     justify-content: space-between;
   }
 }
+
+/* ------------------------------------------------------------- SR-3 logo --
+   The uploaded image, shown at the size a teacher will roughly see it.
+   Capped so a 4000px phone photo cannot push the form off the screen.
+-------------------------------------------------------------------------- */
+.reg-logo {
+  margin: 0 0 var(--jp-space-3, 0.75rem);
+}
+
+.reg-logo__img {
+  display: block;
+  max-width: 14rem;
+  max-height: 9rem;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-radius-md);
+  background: var(--jp-surface-alt);
+}
+
+.reg-logo__caption {
+  margin-top: 0.35rem;
+  font-size: var(--jp-font-size-xs);
+  color: var(--jp-text-muted);
+}

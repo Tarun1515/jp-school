@@ -146,24 +146,41 @@
             migration, and asking for a campus list here would add a sixth step
             to a form somebody has not yet decided to finish.
           -->
-          <fieldset class="field reg-group">
-            <legend class="field__label">How many campuses?</legend>
+          <!--
+            🔴 SR-3: THE SAME CHOICE, IN WORDS SOMEBODY RECOGNISES.
 
-            <label class="form-check">
+            It used to read "How many campuses? / Just the one / Several
+            campuses", which is accurate and is not how a school describes
+            itself. A group running four schools under one trust does not think
+            "I have several campuses"; it thinks "we are a group". The client's
+            demo feedback was that nobody picks the right one — so each option
+            now says what it MEANS for them, not what it sets.
+          -->
+          <fieldset class="field reg-group">
+            <legend class="field__label">Is this one school, or a group?</legend>
+
+            <label class="form-check form-check--block">
               <input type="radio" name="groupType" [value]="1"
                      [ngModel]="value('groupType')" (ngModelChange)="set('groupType', 1)" />
-              <span>Just the one</span>
+              <span>
+                <strong>One school</strong>
+                <small>We have a single campus at one address.</small>
+              </span>
             </label>
 
-            <label class="form-check">
+            <label class="form-check form-check--block">
               <input type="radio" name="groupType" [value]="2"
                      [ngModel]="value('groupType')" (ngModelChange)="set('groupType', 2)" />
-              <span>Several campuses</span>
+              <span>
+                <strong>A group of schools</strong>
+                <small>We run more than one school or campus, and want to post jobs for each of them.</small>
+              </span>
             </label>
 
             <p class="field__helper">
-              You add the other campuses from your dashboard once you are
-              verified. Registration covers the school as a whole.
+              Either way you register once. If you are a group, your dashboard
+              will offer "Add your next school" as soon as you are approved —
+              and you can switch this later without redoing anything.
             </p>
           </fieldset>
 
@@ -238,10 +255,31 @@
               </div>
             }
 
+            <!--
+              SR-1. The optional level between district and town. Shown only
+              when the state has one — Haryana does; nothing else does yet.
+            -->
+            @if (hasTehsils()) {
+              <div class="field">
+                <label class="field__label" for="tehsilId">
+                  Tehsil <span class="field__optional">optional</span>
+                </label>
+                <select class="form-control" id="tehsilId"
+                        [ngModel]="value('tehsilId')"
+                        (ngModelChange)="onTehsilChange($event)">
+                  <option [ngValue]="null">Choose…</option>
+                  @for (item of tehsils(); track item.id) {
+                    <option [ngValue]="item.id">{{ item.name }}</option>
+                  }
+                </select>
+                <p class="field__helper">Narrows the town list. Skip it if you are not sure.</p>
+              </div>
+            }
+
             @if (hasCities()) {
               <div class="field">
                 <label class="field__label" for="cityId">
-                  City <span class="field__optional">optional</span>
+                  Town or city <span class="field__optional">optional</span>
                 </label>
                 <select class="form-control" id="cityId"
                         [ngModel]="value('cityId')"
@@ -253,6 +291,26 @@
                 </select>
               </div>
             }
+
+            <!--
+              🔴 THE VILLAGE BOX, AND IT IS THE POINT OF THE WHOLE ADDRESS
+              DESIGN. Haryana's ~6,800 villages are not a dropdown and never
+              will be (ADDRESS_DESIGN §2) — so the school types the name, and
+              it is stored as a place rather than squeezed into an address
+              line. A village school can now give a complete address.
+            -->
+            <div class="field">
+              <label class="field__label" for="areaOrVillage">
+                Village or area <span class="field__optional">optional</span>
+              </label>
+              <input class="form-control" id="areaOrVillage" type="text"
+                     placeholder="e.g. Dhani Bhagwan Das"
+                     [ngModel]="value('areaOrVillage')"
+                     (ngModelChange)="set('areaOrVillage', $event)" />
+              <p class="field__helper">
+                If your village or colony is not in the list above, type it here.
+              </p>
+            </div>
 
             <div class="field">
               <label class="field__label" for="pincode">
@@ -275,7 +333,69 @@
           }
         }
 
-        <!-- ================= 3. CONTACT ================= -->
+        <!-- ================= 3. LOGO ================= -->
+        @if (step() === 'logo') {
+          <p class="reg-lead">
+            This is the first thing a teacher sees next to your job posts. A
+            logo is ideal — but a clear photo of the school gate, building or
+            signboard works just as well.
+          </p>
+
+          <div class="field">
+            <label class="field__label" for="logoFile">
+              Logo or photo
+              <span class="usr__req" aria-hidden="true">*</span>
+            </label>
+
+            <!--
+              🔴 THE IMAGE THEY JUST CHOSE IS SHOWN. "Uploaded ✓" tells
+              somebody a transfer happened; seeing their own building tells
+              them the RIGHT file arrived, which is the thing they need to
+              know and the reason people re-upload three times.
+
+              ⚠️ After a reload the preview is gone — the browser no longer
+              holds the file and App_Data is not served statically (teacher
+              resumes share that root). So the saved state is stated in words
+              rather than shown as a broken image.
+            -->
+            @if (logoPreview(); as preview) {
+              <figure class="reg-logo">
+                <img class="reg-logo__img" [src]="preview" alt="The image you uploaded" />
+                <figcaption class="reg-logo__caption">This is what teachers will see.</figcaption>
+              </figure>
+            } @else if (value('logoPath')) {
+              <p class="note">
+                Your image is saved. Choose another file below to replace it.
+              </p>
+            }
+
+            <input
+              class="form-control"
+              id="logoFile"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              [disabled]="logoUploading()"
+              (change)="onLogoPicked($event)"
+            />
+
+            <p class="field__helper">
+              JPG, PNG or WebP, up to 10 MB.
+              @if (value('logoPath')) { Choose another file to replace it. }
+            </p>
+
+            @if (logoUploading()) {
+              <p class="field__helper">Uploading…</p>
+            }
+
+            @if (logoError(); as message) {
+              <p class="field__error">{{ message }}</p>
+            }
+
+            @if (error('logoPath')) { <p class="field__error">{{ error('logoPath') }}</p> }
+          </div>
+        }
+
+        <!-- ================= 4. CONTACT ================= -->
         @if (step() === 'contact') {
           <div class="form-grid">
             <div class="field">
@@ -299,46 +419,6 @@
             </div>
 
             <div class="field">
-              <label class="field__label" for="principalName">
-                Principal <span class="field__optional">optional</span>
-              </label>
-              <input class="form-control" id="principalName" type="text"
-                     [ngModel]="value('principalName')"
-                     (ngModelChange)="set('principalName', $event)" />
-            </div>
-
-            <div class="field">
-              <label class="field__label" for="principalMobile">
-                Principal's phone <span class="field__optional">optional</span>
-              </label>
-              <input class="form-control" id="principalMobile" type="tel" maxlength="10"
-                     inputmode="numeric"
-                     [ngModel]="value('principalMobile')"
-                     (ngModelChange)="set('principalMobile', $event)" />
-              @if (error('principalMobile')) { <p class="field__error">{{ error('principalMobile') }}</p> }
-            </div>
-
-            <div class="field">
-              <label class="field__label" for="hrContactName">
-                Who handles hiring <span class="field__optional">optional</span>
-              </label>
-              <input class="form-control" id="hrContactName" type="text"
-                     [ngModel]="value('hrContactName')"
-                     (ngModelChange)="set('hrContactName', $event)" />
-            </div>
-
-            <div class="field">
-              <label class="field__label" for="hrContactMobile">
-                Their phone <span class="field__optional">optional</span>
-              </label>
-              <input class="form-control" id="hrContactMobile" type="tel" maxlength="10"
-                     inputmode="numeric"
-                     [ngModel]="value('hrContactMobile')"
-                     (ngModelChange)="set('hrContactMobile', $event)" />
-              @if (error('hrContactMobile')) { <p class="field__error">{{ error('hrContactMobile') }}</p> }
-            </div>
-
-            <div class="field">
               <label class="field__label" for="website">
                 Website <span class="field__optional">optional</span>
               </label>
@@ -346,8 +426,42 @@
                      placeholder="https://"
                      [ngModel]="value('website')"
                      (ngModelChange)="set('website', $event)" />
+              <!--
+                ⚠️ WEBSITE IS STILL OPTIONAL, AND THAT IS AN OPEN QUESTION, NOT
+                AN OVERSIGHT. The client asked for it to be compulsory;
+                FIELD_MATRIX.md §B puts the contradiction in front of them —
+                the schools this product is sold to are in small towns and
+                villages, and most have no website at all. Compulsory means
+                they cannot register, or the field fills with "na" and "-",
+                which is worse than optional because it can no longer be
+                trusted. Built as-is until they tick a box.
+              -->
+              <p class="field__helper">
+                Teachers trust a school more when they can look it up. Add it
+                if you have one.
+              </p>
             </div>
           </div>
+
+          <!--
+            🔴 SR-3: THE PRINCIPAL AND HR FIELDS USED TO BE HERE.
+
+            Four optional fields on the step a stranger is filling in before
+            anybody has approved them. The client confirmed they are not used
+            to decide an approval, so they moved to the profile, where the
+            school fills them in once they are inside and motivated.
+
+            ⚠️ AND THE MOVE FIXED A REAL BUG, which is in SR_NOTES: the
+            principal's MOBILE was collected here, stored with the
+            registration, and silently dropped on approval — the provisioning
+            procedure had no parameter for it. Moving the field gave it
+            somewhere to live (t_app_schools.PrincipalMobile) and the chain
+            now carries it, asserted by sr-registration.mjs.
+          -->
+          <p class="note">
+            We will ask for the principal's and HR contact's details once you
+            are approved — they are part of your profile, not your application.
+          </p>
         }
 
         <!-- ================= 4. DOCUMENTS ================= -->
@@ -449,8 +563,12 @@
             <dl class="facts">
               <div class="facts__item"><dt>Email</dt><dd>{{ value('contactEmail') || '—' }}</dd></div>
               <div class="facts__item"><dt>Phone</dt><dd>{{ value('contactMobile') || '—' }}</dd></div>
-              <div class="facts__item"><dt>Principal</dt><dd>{{ value('principalName') || '—' }}</dd></div>
-              <div class="facts__item"><dt>Hiring contact</dt><dd>{{ value('hrContactName') || '—' }}</dd></div>
+              <!--
+                SR-3: the principal and hiring-contact rows are gone from the
+                review because the form no longer asks for them — a review
+                step showing a permanent em-dash for a question nobody was
+                asked reads as something the user forgot to fill in.
+              -->
             </dl>
           </section>
 

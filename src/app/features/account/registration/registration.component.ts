@@ -7,7 +7,20 @@ import { DocumentType, Lookup, MASTER_KEYS, RequestDocument, SaveDraftBody } fro
 import { RegistrationService } from '../../../core/registration.service';
 
 /** The steps, in order. `review` is last and is not editable. */
-const STEPS = ['basics', 'address', 'contact', 'documents', 'review'] as const;
+/*
+  🔴 SR-3 ADDS 'logo' AS ITS OWN STEP, between the address and the contacts.
+
+  The client asked for a school image at registration, and it earns a step
+  rather than a field at the bottom of another one: it is the only thing on the
+  form that needs the user to go and find a file, which is the single most
+  likely place to stall. On its own step it is one clear ask with its own
+  explanation, and the progress bar shows it being finished.
+
+  ⚠️ THE CONTACT STEP GOT SHORTER IN THE SAME CHANGE — the principal and HR
+  fields moved to the profile — so the form is six steps and no longer than it
+  was.
+*/
+const STEPS = ['basics', 'address', 'logo', 'contact', 'documents', 'review'] as const;
 type Step = (typeof STEPS)[number];
 
 interface StepMeta {
@@ -20,7 +33,8 @@ interface StepMeta {
 const STEP_META: readonly StepMeta[] = [
   { key: 'basics', label: 'The school', hint: 'Name, board and registration numbers.' },
   { key: 'address', label: 'Where it is', hint: 'The address teachers will see on your jobs.' },
-  { key: 'contact', label: 'Who to reach', hint: 'The people we contact about hiring.' },
+  { key: 'logo', label: 'Your school', hint: 'A logo, or any clear photo of the school.' },
+  { key: 'contact', label: 'Who to reach', hint: 'How we reach you about this application.' },
   { key: 'documents', label: 'Documents', hint: 'Proof that the school is what it says it is.' },
   { key: 'review', label: 'Check and send', hint: 'Everything you have entered, before it goes.' },
 ];
@@ -101,6 +115,7 @@ export class RegistrationComponent {
     boardId: null,
     stateId: null,
     districtId: null,
+    tehsilId: null,
     cityId: null,
   });
 
@@ -109,6 +124,7 @@ export class RegistrationComponent {
   protected readonly schoolTypes = signal<Lookup[]>([]);
   protected readonly states = signal<Lookup[]>([]);
   protected readonly districts = signal<Lookup[]>([]);
+  protected readonly tehsils = signal<Lookup[]>([]);
   protected readonly cities = signal<Lookup[]>([]);
   protected readonly documentTypes = signal<DocumentType[]>([]);
 
@@ -124,11 +140,39 @@ export class RegistrationComponent {
    * disabled: a disabled empty dropdown is a thing somebody keeps clicking.
    */
   protected readonly hasDistricts = computed(() => this.districts().length > 0);
+
+  /*
+    SR-1. Tehsil sits between district and city and is OPTIONAL — a school
+    that knows only its district must still be able to finish. Hidden when
+    the state has none, by the same rule as district and city: an empty
+    dropdown reads as a broken form.
+  */
+  protected readonly hasTehsils = computed(() => this.tehsils().length > 0);
   protected readonly hasCities = computed(() => this.cities().length > 0);
 
   // ---- documents ----------------------------------------------------------
   protected readonly uploaded = signal<RequestDocument[]>([]);
   protected readonly uploading = signal<number | null>(null);
+
+  /** SR-3: the logo upload is its own state — it is not a document type. */
+  protected readonly logoUploading = signal(false);
+  protected readonly logoError = signal<string | null>(null);
+
+  /**
+   * A preview of the file THEY just chose, straight from the browser.
+   *
+   * 🔴 NOT FETCHED BACK FROM THE SERVER, and that is not laziness. Uploads
+   * live under App_Data, which is not served statically and must never be —
+   * teacher resumes and registration documents share that root. Previewing
+   * from the server would mean a new authenticated media route for a picture
+   * the browser already has in its hand.
+   *
+   * ⚠️ SO IT IS EMPTY AFTER A RELOAD, when the draft is resumed and there is
+   * no File object any more. The template handles that case separately and
+   * says the image is saved rather than showing a broken one — which is why
+   * this is a preview, and the saved state is logoPath.
+   */
+  protected readonly logoPreview = signal<string | null>(null);
 
   /** Which document types this request needs, mandatory first. */
   protected readonly slots = computed(() =>
@@ -253,8 +297,10 @@ export class RegistrationComponent {
   protected onStateChange(stateId: number | null): void {
     this.set('stateId', stateId);
     this.set('districtId', null);
+    this.set('tehsilId', null);
     this.set('cityId', null);
     this.districts.set([]);
+    this.tehsils.set([]);
     this.cities.set([]);
 
     if (stateId) {
@@ -273,15 +319,109 @@ export class RegistrationComponent {
 
   protected onDistrictChange(districtId: number | null): void {
     this.set('districtId', districtId);
+    this.set('tehsilId', null);
     this.set('cityId', null);
+    this.tehsils.set([]);
     this.cities.set([]);
 
-    if (districtId) {
-      this.masters.getByParent(MASTER_KEYS.city, districtId).subscribe({
-        next: (items) => this.cities.set(items),
-        error: () => this.cities.set([]),
-      });
+    if (!districtId) {
+      return;
     }
+
+    this.masters.getByParent(MASTER_KEYS.tehsil, districtId).subscribe({
+      next: (items) => this.tehsils.set(items),
+      error: () => this.tehsils.set([]),
+    });
+
+    /*
+      🔴 THE TOWNS OF THE WHOLE DISTRICT ARE LOADED NOW, not after a tehsil is
+      picked — because the tehsil step is optional. Waiting for it would mean a
+      school that skips tehsil never sees a town at all, which is the shape of
+      "optional" that is really "required and badly labelled".
+    */
+    this.masters.getByParent(MASTER_KEYS.city, districtId).subscribe({
+      next: (items) => this.cities.set(items),
+      error: () => this.cities.set([]),
+    });
+  }
+
+  /**
+   * Picking a tehsil NARROWS the towns; clearing it widens them again.
+   */
+  protected onTehsilChange(tehsilId: number | null): void {
+    this.set('tehsilId', tehsilId);
+    this.set('cityId', null);
+
+    const parent = tehsilId ?? this.value('districtId');
+
+    if (!parent) {
+      this.cities.set([]);
+      return;
+    }
+
+    this.masters.getByParent(MASTER_KEYS.city, parent as number).subscribe({
+      next: (items) => this.cities.set(items),
+      error: () => this.cities.set([]),
+    });
+  }
+
+  /**
+   * The school's logo or photo.
+   *
+   * ⚠️ UPLOADED IMMEDIATELY, STORED IN THE DRAFT. The file goes up on
+   * selection so the user sees it worked; the PATH is then saved with the
+   * draft like every other field, which keeps the draft the single source of
+   * truth for a registration (2.50).
+   *
+   * ⚠️ A FAILURE IS SHOWN WHERE THEY ARE LOOKING, not as a toast. The server
+   * refuses by extension, magic bytes and size (2.48), and each refusal is a
+   * sentence somebody can act on — a toast that scrolls away is not.
+   */
+  protected onLogoPicked(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    this.logoUploading.set(true);
+    this.logoError.set(null);
+
+    this.registration.uploadLogo(file).subscribe({
+      next: (path) => {
+        this.logoUploading.set(false);
+        this.set('logoPath', path);
+
+        /*
+          ⚠️ The previous object URL is revoked before a new one replaces it.
+          Each createObjectURL holds its blob in memory until revoked, and a
+          user trying four photos would otherwise pin all four.
+        */
+        const previous = this.logoPreview();
+
+        if (previous) {
+          URL.revokeObjectURL(previous);
+        }
+
+        this.logoPreview.set(URL.createObjectURL(file));
+
+        /*
+          ⚠️ The input is cleared so picking the SAME file again still fires a
+          change event — otherwise a retry after a failure silently does
+          nothing, which reads as the button being broken.
+        */
+        input.value = '';
+      },
+      error: (err: unknown) => {
+        this.logoUploading.set(false);
+        input.value = '';
+
+        const message = (err as { error?: { message?: string } })?.error?.message;
+
+        this.logoError.set(message || 'That file could not be uploaded. Try a JPG or PNG under 10 MB.');
+      },
+    });
   }
 
   // ---- validation, per step ----------------------------------------------
@@ -327,6 +467,22 @@ export class RegistrationComponent {
       }
     }
 
+    if (step === 'logo') {
+      /*
+        🔴 REQUIRED, which is the client's instruction — and FIELD_MATRIX.md
+        §A1 records the caution that went with it: a school registering from a
+        phone at night that cannot find its logo file will stop here. So the
+        ask is "a logo OR any photo of the school", which is a question
+        anybody can answer, and the copy says exactly that.
+
+        ⚠️ If the client ticks "optional" on the matrix, this block is the one
+        line that changes.
+      */
+      if (!f.logoPath) {
+        errors['logoPath'] = 'Add a logo or a photo of your school so teachers can recognise you.';
+      }
+    }
+
     if (step === 'contact') {
       if (!f.contactEmail?.trim()) {
         errors['contactEmail'] = 'We send verification updates to this address.';
@@ -336,10 +492,18 @@ export class RegistrationComponent {
         errors['contactEmail'] = 'That email address does not look complete.';
       }
 
+      /*
+        ⚠️ SR-3: principalMobile and hrContactMobile were validated here and
+        are no longer ASKED here — they moved to the profile. Validating a
+        field the form does not show can only ever block a submit with a
+        message pointing at a box that is not on screen.
+
+        🔴 THE DRAFT STILL CARRIES THEM. A school that started registering
+        before this change has values in those fields, and they are sent on
+        unchanged — the matrix moves fields, it does not orphan data.
+      */
       for (const [key, label] of [
         ['contactMobile', 'contact'],
-        ['principalMobile', "principal's"],
-        ['hrContactMobile', "HR contact's"],
       ] as const) {
         const value = (f[key] as string | null | undefined)?.trim();
 
