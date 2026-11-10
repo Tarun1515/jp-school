@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MasterService, ToastService } from 'jp-shared/core';
 import { Lookup, MASTER_KEYS } from 'jp-shared/models';
-import { UiMultiSelectComponent } from 'jp-shared/ui';
+import { UiComboboxComponent, UiMultiSelectComponent, lookupsToOptions } from 'jp-shared/ui';
 
 import { SchoolService } from '../../../../core/school.service';
 import {
@@ -58,7 +58,7 @@ import {
 @Component({
   selector: 'app-job-form',
   standalone: true,
-  imports: [FormsModule, RouterLink, UiMultiSelectComponent],
+  imports: [FormsModule, RouterLink, UiComboboxComponent, UiMultiSelectComponent],
   templateUrl: './job-form.component.html',
   styleUrl: './job-form.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -121,15 +121,24 @@ export class JobFormComponent {
   protected readonly isEdit = computed(() => this.jobId() !== null);
 
   /*
-    Lookup is {id, code, name}; the multi-select speaks {value, label}. Mapped
-    here rather than changing either shape — a master list is a master list, and
-    a UI control should not dictate the vocabulary of the data layer.
-  */
-  protected readonly subjectOptions = computed(() =>
-    this.subjects().map((s) => ({ value: s.id, label: s.name })));
+    Lookup is {id, code, name}; the controls speak {value, label}. Mapped here
+    rather than changing either shape — a master list is a master list, and a UI
+    control should not dictate the vocabulary of the data layer.
 
-  protected readonly classLevelOptions = computed(() =>
-    this.classLevels().map((c) => ({ value: c.id, label: c.name })));
+    SR-3 (G27): through `lookupsToOptions`, which is that map, shared. Three
+    hand-rolled copies of one line is how two of them end up disagreeing.
+
+    ⚠️ COMPUTED, NOT MAPPED INLINE IN THE TEMPLATE. The map written in the
+    binding rebuilds the array on every change-detection pass and hands the
+    OnPush child a new `options` identity each time, which defeats it.
+  */
+  protected readonly subjectOptions = computed(() => lookupsToOptions(this.subjects()));
+
+  protected readonly designationOptions = computed(() => lookupsToOptions(this.designations()));
+
+  protected readonly qualificationOptions = computed(() => lookupsToOptions(this.qualifications()));
+
+  protected readonly classLevelOptions = computed(() => lookupsToOptions(this.classLevels()));
 
   constructor() {
     const id = this.route.snapshot.paramMap.get('jobId');
@@ -279,6 +288,32 @@ export class JobFormComponent {
 
   protected fieldError(field: string): string | null {
     return this.fieldErrors()[field] ?? null;
+  }
+
+  /*
+    🔴 ZERO IS STILL "NOT CHOSEN" — what the placeholder <option [value]="0">
+    carried before. <ui-combobox> commits an option's value or null, so null
+    lands back on 0 and the body posted is the one the server has always been
+    given. The combobox is [required], so nothing in the UI reaches the null
+    branch; it is here because the field is typed number and must stay one.
+  */
+  protected onSubjectChange(subjectId: number | null): void {
+    this.form.subjectId = subjectId ?? 0;
+  }
+
+  protected onDesignationChange(designationId: number | null): void {
+    this.form.designationId = designationId ?? 0;
+  }
+
+  /*
+    🔴 NULL IS KEPT, NOT FOLDED TO 0 — the opposite of the two handlers above,
+    and deliberately so. `@QualificationId` defaults to NULL in `USP_SaveJob`,
+    so "no specific requirement" is a real answer the column stores, and that
+    is exactly what clearing the combobox has to post. Coercing it to 0 would
+    send an id no qualification row has and earn a foreign-key refusal.
+  */
+  protected onQualificationChange(qualificationId: number | null): void {
+    this.form.qualificationId = qualificationId;
   }
 
   protected onSubjectsChange(ids: (string | number)[]): void {

@@ -4,7 +4,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { map } from 'rxjs';
 import { UiAuthShellComponent, UiAuthShellTone } from 'jp-shared/ui';
-import { AuthService } from 'jp-shared/core';
+import { AuthService, BillingService, Plan } from 'jp-shared/core';
 import {
   APPROVAL_STATUS,
   ApprovalDetail,
@@ -114,6 +114,59 @@ export class AccountStatusComponent {
   /** The most recent thing an admin did, for the reason on a rejection. */
   protected readonly lastDecision = computed(() => this.request()?.trail?.[0] ?? null);
 
+  // ---- the plan they asked for (SR-4) -------------------------------------
+  /**
+   * 🔴 THE "AFTER SUBMITTING" HALF OF BEING HONEST ABOUT A PAID CHOICE.
+   *
+   * ----------------------------------------------------------------------------
+   * 🔴 WHY THIS PAGE AND NOT ONLY THE FORM
+   * ----------------------------------------------------------------------------
+   * The registration form says, beside the submit button, that a paid choice
+   * does not make the account paid. This is the screen they land on the
+   * instant they press that button, and the screen they come back to every
+   * time they wonder what is happening — so it is the one place where
+   * forgetting to repeat it would let the belief "we have bought Standard"
+   * settle in over several days of waiting.
+   *
+   * ⚠️ IT DELIBERATELY DOES NOT SAY "HOW TO PAY". There is nothing to pay yet:
+   * the pending plan-change request does not exist until the registration is
+   * APPROVED, and asking a school to transfer money against a verification
+   * that might be rejected would be the one genuinely dishonest thing in this
+   * flow. The "how to pay" guidance appears on the dashboard at first login
+   * after approval, which is when there is a reference to quote.
+   *
+   * ⚠️ The catalogue is read for the plan's NAME. The draft stores a code, and
+   * "SCHOOL_STANDARD" is not a sentence anybody should be shown.
+   */
+  private readonly billing = inject(BillingService);
+
+  protected readonly plans = this.billing.plans;
+
+  /** The free plan, by its catalogue flag rather than by a hardcoded code. */
+  private readonly freePlan = computed<Plan | null>(
+    () => this.plans().find((p) => p.isDefault)
+      ?? this.plans().find((p) => p.price === 0)
+      ?? null,
+  );
+
+  /**
+   * The paid plan this registration asked for, or null.
+   *
+   * ⚠️ Null covers all three ordinary cases: they chose Free, they were never
+   * asked (a draft from before SR-4), or the catalogue has not loaded. All
+   * three render nothing, which is right — there is no paid intention to
+   * explain.
+   */
+  protected readonly askedForPlan = computed<Plan | null>(() => {
+    const code = this.request()?.schoolDetail?.requestedPlanCode;
+
+    if (!code) return null;
+
+    const plan = this.plans().find((p) => p.planCode === code) ?? null;
+
+    return plan !== null && plan.planId !== this.freePlan()?.planId ? plan : null;
+  });
+
   protected readonly statusId = computed(() => this.request()?.header.statusId ?? null);
 
   /** Approved is final and good; rejected is final and not. Neither can be acted on. */
@@ -134,6 +187,16 @@ export class AccountStatusComponent {
   );
 
   constructor() {
+    /*
+      🔴 SR-4. The catalogue, so a plan code can be named rather than shown.
+
+      ⚠️ `loadPlans()` and not `load()`: an account sitting on this page has no
+      subscription and no history by definition, and asking for them would make
+      the shared billing service record a failure that the /billing screen then
+      reports to a school that never went there.
+    */
+    this.billing.loadPlans();
+
     /*
       The newest request wins. A school that was rejected and registered again
       has two, and the one that matters is the one they are waiting on.

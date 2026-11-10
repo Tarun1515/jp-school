@@ -267,3 +267,41 @@
   font-size: var(--jp-font-size-xs);
   color: var(--jp-text-muted);
 }
+
+/*
+  SR-5. The plan radios on the review step.
+
+  🔴 `.form-check--block` WAS A CLASS THAT DID NOTHING. It is written in the
+  template but defined nowhere — not in the design system, and nothing else in
+  any of the four apps uses it. So the <strong> name and the <small> allowances
+  stayed inline and ran together, which is how the review step read:
+
+      Register as FreePost a job: 1 No payment, nothing to set up.
+      Standard (SAMPLE PRICING) — ₹1,499 for 30 daysPost a job: 10 · …
+
+  Caught in a walkthrough screenshot, not by a test — nothing asserts spacing,
+  and the page is otherwise correct.
+
+  ⚠️ DEFINED HERE, NOT IN THE DESIGN SYSTEM, because registration is the only
+  caller. The day a second screen wants stacked radio options is the day it
+  earns a shared modifier; inventing one now would be a design-system entry
+  with a single user and no second opinion about what it should do.
+*/
+.form-check--block {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: var(--jp-space-3);
+  padding: var(--jp-space-3) 0;
+
+  > span {
+    display: flex;
+    flex-direction: column;
+    gap: var(--jp-space-1);
+  }
+
+  small {
+    color: var(--jp-text-muted);
+    line-height: 1.5;
+  }
+}

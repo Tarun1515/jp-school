@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { BillingService } from 'jp-shared/core';
 import { UiBadgeComponent, UiButtonComponent, UiEmptyStateComponent } from 'jp-shared/ui';
 
 import { ApplicantService, SchoolApplicantStats } from '../../../core/applicant.service';
@@ -61,6 +62,49 @@ export class SchoolDashboardComponent {
   private readonly dashboards = inject(DashboardService);
   private readonly jobs = inject(JobService);
   private readonly applicants = inject(ApplicantService);
+
+  /**
+   * 🔴 SR-4. "HOW DO I PAY" — THE FIRST LOGIN AFTER APPROVAL, AND EVERY ONE
+   * AFTER IT UNTIL IT IS SETTLED.
+   *
+   * ----------------------------------------------------------------------------
+   * 🔴 WHY THIS IS NOT A "FIRST LOGIN" FLAG
+   * ----------------------------------------------------------------------------
+   * The requirement is that the school's first login shows how to pay. The
+   * obvious reading is a one-shot banner behind a seen-it flag, and that is the
+   * wrong mechanism for three reasons:
+   *
+   *   1. A flag can only ever be shown ONCE, and the one thing certain about a
+   *      bank transfer is that it does not happen in the ten seconds somebody
+   *      spends on a dashboard. The guidance has to still be there tomorrow,
+   *      when they are actually at their banking screen.
+   *   2. A flag would need storage, and the honest version of that storage
+   *      already exists — the PENDING PLAN_CHANGE request itself. "Do we owe
+   *      money" is the real question, and the request is the real answer.
+   *   3. 🔴 IT CLEARS ITSELF CORRECTLY. The banner disappears the moment an
+   *      admin verifies the payment, because the request stops being pending.
+   *      A seen-it flag would keep saying "pay us" to a school that already
+   *      had, or would have stopped saying it to one that had not — and only
+   *      one of those two mistakes is survivable.
+   *
+   * So the condition is "this account has an open plan-change request", which
+   * is TRUE on the first login after approval — exactly as the brief asks —
+   * and stays true for precisely as long as it is useful.
+   *
+   * ⚠️ READ THROUGH THE SHARED SERVICE, not through a dashboard endpoint of its
+   * own. /billing renders the same fact from the same signal, and a second
+   * reader with its own URL is where two screens start to disagree about money
+   * (G27).
+   *
+   * ⚠️ ITS OWN CALL AND ITS OWN FAILURE, like the jobs and applicant tiles: a
+   * failure here leaves the banner absent and the rest of the dashboard
+   * untouched. Absent is the right failure direction — a school that owes money
+   * and is not told has a conversation with support, where a school shown a
+   * demand that does not exist has been asked for money it does not owe.
+   */
+  private readonly billing = inject(BillingService);
+
+  protected readonly pendingPlan = this.billing.openRequest;
 
   protected readonly loading = signal(true);
   protected readonly loadFailed = signal(false);
@@ -176,6 +220,39 @@ export class SchoolDashboardComponent {
       next: (stats) => this.applicantStats.set(stats),
       error: () => this.applicantStats.set(null),
     });
+
+    /*
+      🔴 SR-4. Is there money outstanding, and what for?
+
+      ⚠️ NOT gated on BILLING.MANAGE. Whoever is looking at this dashboard
+      needs to understand why the allowance has not changed; an HR who cannot
+      upgrade still answers the phone when the accounts department rings about
+      a transfer. Committing the account to a payment is the privilege — the
+      server checks that — and knowing it is outstanding is not.
+    */
+    this.billing.loadOpenRequest();
+  }
+
+  /**
+   * The day, in IST.
+   *
+   * ⚠️ Storage is UTC and the business rules are IST (2.28). The zone is NAMED
+   * rather than left to the browser's, so a school in Mumbai and an accountant
+   * reviewing from abroad read the same date off the same row.
+   */
+  protected day(value: string | null): string {
+    if (!value) return '—';
+
+    const at = new Date(value.endsWith('Z') ? value : `${value}Z`);
+
+    return at.toLocaleDateString('en-IN', {
+      day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata',
+    });
+  }
+
+  /** ⚠️ Indian digit grouping — 1,499 and not 1.499 or 1 499. */
+  protected money(value: number): string {
+    return `₹${value.toLocaleString('en-IN')}`;
   }
 
   protected displayName(member: { fullName: string | null; email: string }): string {

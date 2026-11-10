@@ -442,17 +442,29 @@
                    (ngModelChange)="set('addressLine2', $event, 'contact')" />
           </div>
 
-          <div class="field">
-            <label class="field__label" for="stateId">State</label>
-            <select class="form-control" id="stateId"
-                    [ngModel]="value('stateId')"
-                    (ngModelChange)="onStateChange($event)">
-              <option [ngValue]="null">Choose…</option>
-              @for (item of states(); track item.id) {
-                <option [ngValue]="item.id">{{ item.name }}</option>
-              }
-            </select>
-          </div>
+          <!--
+            🔴 SR-3 (G27): SEARCHABLE, NOT A PLAIN SELECT.
+
+            The geography seed takes these three from one state to every state
+            in India. A native <select> over that is a list you can only use if
+            you already know roughly where the name falls alphabetically.
+
+            ⚠️ THE SWAP IS A TAG CHANGE AND NOTHING MORE. <ui-combobox> renders
+            its OWN .field wrapper, label, helper and error, so the
+            hand-written label that sat beside each select is GONE rather than
+            duplicated — and it prints "Optional" itself where [required] is
+            absent, so nothing here writes the word.
+
+            ⚠️ IT STILL COMMITS AN ID OR NULL, exactly as the placeholder
+            option did. It is not free text: typing a city we do not have
+            selects nothing.
+          -->
+          <ui-combobox
+            label="State"
+            [options]="stateOptions()"
+            [required]="true"
+            [ngModel]="value('stateId')"
+            (ngModelChange)="onStateChange($event)" />
 
           <!--
             ⚠️ District and city are HIDDEN when the dataset is empty, which is
@@ -460,31 +472,19 @@
             uses — a disabled empty dropdown is a thing people keep clicking.
           -->
           @if (hasDistricts()) {
-            <div class="field">
-              <label class="field__label" for="districtId">District</label>
-              <select class="form-control" id="districtId"
-                      [ngModel]="value('districtId')"
-                      (ngModelChange)="onDistrictChange($event)">
-                <option [ngValue]="null">Choose…</option>
-                @for (item of districts(); track item.id) {
-                  <option [ngValue]="item.id">{{ item.name }}</option>
-                }
-              </select>
-            </div>
+            <ui-combobox
+              label="District"
+              [options]="districtOptions()"
+              [ngModel]="value('districtId')"
+              (ngModelChange)="onDistrictChange($event)" />
           }
 
           @if (hasCities()) {
-            <div class="field">
-              <label class="field__label" for="cityId">City</label>
-              <select class="form-control" id="cityId"
-                      [ngModel]="value('cityId')"
-                      (ngModelChange)="set('cityId', $event, 'contact')">
-                <option [ngValue]="null">Choose…</option>
-                @for (item of cities(); track item.id) {
-                  <option [ngValue]="item.id">{{ item.name }}</option>
-                }
-              </select>
-            </div>
+            <ui-combobox
+              label="City"
+              [options]="cityOptions()"
+              [ngModel]="value('cityId')"
+              (ngModelChange)="set('cityId', $event, 'contact')" />
           }
 
           <div class="field">
@@ -496,10 +496,15 @@
           </div>
         </div>
 
+        <!-- SR-5: the lists exist now; see the longer note in registration. -->
         @if (!hasDistricts()) {
           <p class="note">
-            We are still building the district and city lists for India. Your
-            state and PIN code are enough — we will fill in the rest for you.
+            @if (value('stateId')) {
+              We do not have the district list for this state yet. Your state
+              and PIN code are enough — we will fill in the rest for you.
+            } @else {
+              Choose your state, and the district and town lists fill in from it.
+            }
           </p>
         }
 

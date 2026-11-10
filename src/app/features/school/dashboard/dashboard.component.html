@@ -53,6 +53,70 @@
     </header>
 
     <!--====================================================================
+      🔴 SR-4: HOW TO PAY — THE FIRST LOGIN AFTER APPROVAL, AND EVERY ONE
+               AFTER IT UNTIL AN ADMIN CONFIRMS THE MONEY
+      =====================================================================
+
+      A school that chose Standard while registering has a PENDING plan-change
+      request opened by the approval. It has never seen that request — it was
+      created days later by somebody else's click — so this is the first thing
+      the product has ever said to it about the money it offered to pay.
+
+      🔴 IT LEADS WITH WHAT IS TRUE, NOT WITH WHAT WAS ASKED FOR. "You are on
+      the free plan" comes before the plan name, because the one belief this
+      whole feature exists to prevent is a school thinking it already has
+      Standard. The plan tile three rows down says "Free" and this banner has
+      to agree with it at a glance.
+
+      ⚠️ Not a one-shot "first login" banner. The condition is the pending
+      request itself, so it survives until the payment is confirmed and then
+      clears itself — a seen-it flag would either keep asking a school that has
+      already paid or stop telling one that has not. See the comment on
+      pendingPlan in the .ts.
+
+      ⚠️ There is no Pay button, and there is no gateway to put behind one.
+      Money arrives by transfer, cheque or cash and an admin confirms it; a
+      working-looking button would be the mockup-era failure this project
+      exists to avoid (2.62).
+    -->
+    @if (pendingPlan(); as pending) {
+      <div class="dash__pay" role="status">
+        <p class="dash__pay-title">
+          <strong>You are on the free plan.</strong>
+          Your request for {{ pending.planName }} is waiting on payment.
+        </p>
+
+        <p class="dash__pay-how">
+          Pay by bank transfer, cheque or cash, quoting
+          <strong>{{ pending.requestNo }}</strong>. An administrator confirms it
+          by hand — usually within a working day of the money arriving — and
+          your plan changes then, not before. Nothing you have done so far is
+          lost in the meantime.
+        </p>
+
+        @if (pending.priceQuoted !== null) {
+          <!--
+            🔴 THE FIGURE THAT WAS QUOTED, not today's catalogue price. Prices
+            are data and will change (2.7), and re-deriving the amount from the
+            catalogue would silently restate what was agreed.
+          -->
+          <p class="dash__pay-amount">
+            {{ money(pending.priceQuoted) }} · requested {{ day(pending.submittedOn) }}
+          </p>
+        }
+
+        <!--
+          ⚠️ The plans page is where the request, its reference and the full
+          comparison already live (6.5B). Linking to it rather than repeating
+          any of that here keeps one screen responsible for billing.
+        -->
+        <p>
+          <a class="btn btn--sm" routerLink="/billing">See the plan and payment details</a>
+        </p>
+      </div>
+    }
+
+    <!--====================================================================
       WHAT ACTUALLY EXISTS
 
       Three facts, each of them read from a real endpoint. Nothing here is
@@ -92,6 +156,32 @@
             <a class="tile__link" routerLink="/branches">
               All {{ school.branchCount }} campuses
             </a>
+          } @else if (isMultiCampus()) {
+            <!--
+              🔴 SR-3: THE GROUP THAT REGISTERED AS A GROUP AND HAS ONE CAMPUS.
+
+              `groupType !== 1` means this organisation told us at registration
+              that it runs more than one school. One campus is therefore not a
+              settled state for them — it is an unfinished one, and the
+              dashboard is the screen where they will actually notice it.
+
+              ⚠️ IT IS NOT SHOWN TO A STANDALONE SCHOOL. A single school being
+              told to "add your next school" is being sold at on the one screen
+              whose whole job is to state what is true. The guard is the group
+              type THEY chose at registration, never a guess from the campus
+              count — a group with one campus and a standalone school have the
+              same count and must not get the same screen.
+
+              ⚠️ IT LINKS TO /branches RATHER THAN OPENING THE FORM. That page
+              leads with its own "Add a campus" button, so the CTA hands over to
+              the place that owns the action instead of carrying a second copy
+              of it (G27).
+            -->
+            <p class="tile__meta">
+              You registered as a group, and this is your only campus so far.
+              Each one gets its own jobs, applicants and team.
+            </p>
+            <a class="tile__link" routerLink="/branches">Add your next school</a>
           }
         </div>
       </section>

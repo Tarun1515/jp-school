@@ -1,6 +1,51 @@
 @use 'variables' as v;
 @use 'mixins' as m;
 
+// -----------------------------------------------------------------------------
+// 🔴 SR-4 — "HOW DO I PAY"
+//
+// A warning rule and not a success one: something is outstanding, and green
+// would read as "sorted". Not danger either — nothing has gone wrong, and a red
+// rule on a dashboard is read as a suspension.
+//
+// ⚠️ ABOVE THE TILES, so it is read before the plan tile that says "Free" —
+// the banner is what explains that word, and underneath it the explanation
+// arrives too late.
+//
+// The same margin-rule grammar the rest of the product uses for a statement
+// about state, at the one weight that makes it unskippable.
+// -----------------------------------------------------------------------------
+.dash__pay {
+  margin-bottom: v.$space-5;
+  padding: v.$space-4;
+  border-left: var(--jp-margin-rule-width) solid var(--jp-warning);
+  background: var(--jp-surface-alt);
+  border-radius: 0 var(--jp-radius-md) var(--jp-radius-md) 0;
+
+  > p { margin: 0 0 v.$space-3; }
+  > p:last-child { margin-bottom: 0; }
+}
+
+.dash__pay-title {
+  font-size: var(--jp-font-size-base);
+  line-height: var(--jp-line-height-snug);
+}
+
+.dash__pay-how {
+  font-size: var(--jp-font-size-sm);
+  color: var(--jp-text-muted);
+  line-height: var(--jp-line-height-relaxed);
+}
+
+// Tabular, like every other figure in the product that somebody copies into a
+// banking screen.
+.dash__pay-amount {
+  @include m.tabular;
+
+  font-size: var(--jp-font-size-sm);
+  font-weight: var(--jp-font-weight-semibold);
+}
+
 // Three facts across, then the sections that do not exist yet. The tiles are a
 // grid rather than a flex row so the third one does not end up alone on a line
 // at an awkward width.

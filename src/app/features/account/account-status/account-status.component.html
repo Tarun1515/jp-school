@@ -42,6 +42,32 @@
   }
 
   <!--
+    ===================================================================
+    🔴 SR-4: THE PAID CHOICE, RESTATED AFTER SUBMITTING
+    ===================================================================
+
+    The form said this beside the submit button. This screen is where the
+    school lands the moment it presses that button and where it comes back
+    while it waits — so this is where the belief "we have bought Standard"
+    would otherwise settle in over several days.
+
+    ⚠️ IT DOES NOT TELL THEM HOW TO PAY, and that is deliberate. There is
+    nothing to pay against yet: the plan-change request is opened when the
+    registration is APPROVED, and asking a school to transfer money while its
+    verification could still be rejected would be the only truly dishonest
+    step in this flow. The "how to pay" guidance is on the dashboard at first
+    login after approval, when there is a reference to quote.
+  -->
+  @if (askedForPlan(); as asked) {
+    <p class="status__plan" role="status">
+      <strong>You asked for {{ asked.name }}.</strong>
+      Nothing has been charged. Your account will open on the free plan, and we
+      will show you where to pay once your school is verified — the plan changes
+      only after an administrator has confirmed the payment arrived.
+    </p>
+  }
+
+  <!--
     🔴 THE PROMISE THE PHASE 1D COPY MADE.
 
     "If we do, this page will name exactly which one and why." Not "a document

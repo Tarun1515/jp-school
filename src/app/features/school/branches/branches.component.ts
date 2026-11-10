@@ -1,8 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ConfirmDialogService, MasterService, ToastService } from 'jp-shared/core';
 import { Lookup, MASTER_KEYS } from 'jp-shared/models';
-import { UiBadgeComponent, UiButtonComponent, UiModalComponent } from 'jp-shared/ui';
+import {
+  UiBadgeComponent,
+  UiButtonComponent,
+  UiComboboxComponent,
+  UiModalComponent,
+  lookupsToOptions,
+} from 'jp-shared/ui';
 
 import { SchoolContextService } from '../../../core/school-context.service';
 import { SaveBranchBody, SchoolBranch, SchoolService } from '../../../core/school.service';
@@ -35,7 +42,7 @@ import { SaveBranchBody, SchoolBranch, SchoolService } from '../../../core/schoo
 @Component({
   selector: 'app-branches',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, UiBadgeComponent, UiButtonComponent, UiModalComponent],
+  imports: [ReactiveFormsModule, UiBadgeComponent, UiButtonComponent, UiComboboxComponent, UiModalComponent],
   templateUrl: './branches.component.html',
   styleUrl: './branches.component.scss',
 })
@@ -63,6 +70,18 @@ export class BranchesComponent {
   /** ⚠️ Empty today (2.47). Same degrade as the profile and registration forms. */
   protected readonly hasDistricts = computed(() => this.districts().length > 0);
   protected readonly hasCities = computed(() => this.cities().length > 0);
+
+  /*
+    SR-3 (G27). The three geography masters as combobox options.
+
+    ⚠️ COMPUTED, NOT MAPPED INLINE IN THE TEMPLATE. `lookupsToOptions(states())`
+    written in the binding rebuilds the array on every change-detection pass and
+    hands <ui-combobox> a new `options` identity each time — which defeats the
+    OnPush it was given.
+  */
+  protected readonly stateOptions = computed(() => lookupsToOptions(this.states()));
+  protected readonly districtOptions = computed(() => lookupsToOptions(this.districts()));
+  protected readonly cityOptions = computed(() => lookupsToOptions(this.cities()));
 
   protected readonly headOffice = computed(() => this.branches().find((b) => b.isHeadOffice) ?? null);
   protected readonly others = computed(() => this.branches().filter((b) => !b.isHeadOffice));
@@ -97,6 +116,29 @@ export class BranchesComponent {
       next: (items) => this.states.set(items),
       error: () => this.states.set([]),
     });
+
+    /*
+      🔴 SR-3 (G27). THE CASCADE HANGS OFF valueChanges, NOT A DOM EVENT.
+
+      The plain <select> fired a native change event that the template read
+      back with $any($event.target).value. <ui-combobox> is a
+      ControlValueAccessor: it commits through the form control and emits no DOM
+      change event at all, so the reload of the dependent master listens to the
+      control that actually changed. `formControlName` is unchanged.
+
+      ⚠️ EVERY PROGRAMMATIC WRITE IS { emitEvent: false }, HERE AND IN THE
+      RESETS THAT OPEN THE DIALOG. Clearing districtId with events on would
+      re-enter this handler; and opening an existing campus to edit would look
+      like somebody had just changed the state, wiping the district and city the
+      campus was saved with.
+    */
+    this.form.controls.stateId.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((stateId) => this.onStateChange(stateId));
+
+    this.form.controls.districtId.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((districtId) => this.onDistrictChange(districtId));
 
     this.load();
   }
@@ -140,7 +182,7 @@ export class BranchesComponent {
   // ---- the dialog ---------------------------------------------------------
 
   protected openAdd(): void {
-    this.form.reset({ isActive: true, branchName: '', branchCode: '' });
+    this.form.reset({ isActive: true, branchName: '', branchCode: '' }, { emitEvent: false });
     this.districts.set([]);
     this.cities.set([]);
     this.editing.set('new');
@@ -162,18 +204,42 @@ export class BranchesComponent {
       contactEmail: branch.contactEmail ?? '',
       contactMobile: branch.contactMobile ?? '',
       isActive: branch.isActive,
-    });
+    }, { emitEvent: false });
 
     this.districts.set([]);
     this.cities.set([]);
 
+    /*
+      🔴 BOTH DEPENDENT LISTS ARE FETCHED, OR THE SAVED CITY IS INVISIBLE.
+
+      The district and city controls render behind `hasDistricts()` and
+      `hasCities()` (2.47), so a list nobody fetched is a control nobody draws.
+      Loading only the districts meant opening a campus that HAS a city showed
+      no city control at all: the value sat in the form, unreadable and
+      unchangeable, until the user re-picked the district to trigger the
+      cascade.
+
+      ⚠️ THROUGH loadDistricts / loadCities, NOT THROUGH THE CASCADE HANDLERS.
+      Those two do nothing but fill a signal. `onStateChange` and
+      `onDistrictChange` also CLEAR the choice below them — correct when a
+      person changes a parent, wrong when we are restoring a saved row, and the
+      reason the reset above is { emitEvent: false } in the first place.
+    */
     if (branch.stateId) this.loadDistricts(branch.stateId);
+    if (branch.districtId) this.loadCities(branch.districtId);
 
     this.editing.set(branch);
   }
 
-  protected onStateChange(stateId: number | null): void {
-    this.form.patchValue({ stateId, districtId: null, cityId: null });
+  /**
+   * The state changed, so the district list has to be refetched — and the
+   * district and city underneath it are wrong now, so they go.
+   *
+   * ⚠️ stateId is NOT written back here. The control already holds it: the
+   * combobox committed it, which is the thing that woke this up.
+   */
+  private onStateChange(stateId: number | null): void {
+    this.form.patchValue({ districtId: null, cityId: null }, { emitEvent: false });
     this.districts.set([]);
     this.cities.set([]);
 
@@ -187,16 +253,25 @@ export class BranchesComponent {
     });
   }
 
-  protected onDistrictChange(districtId: number | null): void {
-    this.form.patchValue({ districtId, cityId: null });
+  private onDistrictChange(districtId: number | null): void {
+    this.form.patchValue({ cityId: null }, { emitEvent: false });
     this.cities.set([]);
 
-    if (districtId) {
-      this.masters.getByParent(MASTER_KEYS.city, districtId).subscribe({
-        next: (items) => this.cities.set(items),
-        error: () => this.cities.set([]),
-      });
-    }
+    if (districtId) this.loadCities(districtId);
+  }
+
+  /**
+   * ⚠️ FETCHES, AND NOTHING ELSE — exactly like `loadDistricts` above.
+   *
+   * Keeping the clearing in `onDistrictChange` and the fetch here is what lets
+   * `openEdit` restore a saved city: it can fill the list without re-entering
+   * the cascade that would wipe the value it is trying to show.
+   */
+  private loadCities(districtId: number): void {
+    this.masters.getByParent(MASTER_KEYS.city, districtId).subscribe({
+      next: (items) => this.cities.set(items),
+      error: () => this.cities.set([]),
+    });
   }
 
   protected save(): void {

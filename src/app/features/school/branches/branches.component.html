@@ -179,41 +179,41 @@
         <input class="form-control" id="addressLine2" type="text" formControlName="addressLine2" />
       </div>
 
-      <div class="field">
-        <label class="field__label" for="branchStateId">State</label>
-        <select class="form-control" id="branchStateId" formControlName="stateId"
-                (change)="onStateChange($any($event.target).value ? +$any($event.target).value : null)">
-          <option [ngValue]="null">Choose…</option>
-          @for (item of states(); track item.id) {
-            <option [ngValue]="item.id">{{ item.name }}</option>
-          }
-        </select>
-      </div>
+      <!--
+        🔴 SR-3 (G27): SEARCHABLE, NOT A PLAIN SELECT.
+
+        The geography seed takes these three from one state to every state in
+        India. A native <select> over that is a list you can only use if you
+        already know roughly where the name falls alphabetically.
+
+        ⚠️ <ui-combobox> RENDERS ITS OWN .field WRAPPER, LABEL, HELPER AND
+        ERROR, so the hand-written label beside each select is gone rather than
+        duplicated. It prints "Optional" itself — and on a campus these three
+        genuinely are: the form carries no required validator for them.
+
+        ⚠️ IT IS A ControlValueAccessor, so formControlName is untouched. What
+        moved is the cascade: there is no native (change) event to read any
+        more, so the component listens to the control's valueChanges instead.
+        See the constructor.
+      -->
+      <ui-combobox
+        label="State"
+        [options]="stateOptions()"
+        formControlName="stateId" />
 
       <!-- ⚠️ Hidden while the datasets are empty (2.47), exactly as elsewhere. -->
       @if (hasDistricts()) {
-        <div class="field">
-          <label class="field__label" for="branchDistrictId">District</label>
-          <select class="form-control" id="branchDistrictId" formControlName="districtId"
-                  (change)="onDistrictChange($any($event.target).value ? +$any($event.target).value : null)">
-            <option [ngValue]="null">Choose…</option>
-            @for (item of districts(); track item.id) {
-              <option [ngValue]="item.id">{{ item.name }}</option>
-            }
-          </select>
-        </div>
+        <ui-combobox
+          label="District"
+          [options]="districtOptions()"
+          formControlName="districtId" />
       }
 
       @if (hasCities()) {
-        <div class="field">
-          <label class="field__label" for="branchCityId">City</label>
-          <select class="form-control" id="branchCityId" formControlName="cityId">
-            <option [ngValue]="null">Choose…</option>
-            @for (item of cities(); track item.id) {
-              <option [ngValue]="item.id">{{ item.name }}</option>
-            }
-          </select>
-        </div>
+        <ui-combobox
+          label="City"
+          [options]="cityOptions()"
+          formControlName="cityId" />
       }
 
       <div class="field">
@@ -226,10 +226,15 @@
       </div>
     </div>
 
+    <!-- SR-5: the lists exist now; see the longer note in registration. -->
     @if (!hasDistricts()) {
       <p class="note">
-        We are still building the district and city lists for India. The state
-        and PIN code are enough for now.
+        @if (form.controls.stateId.value) {
+          We do not have the district list for this state yet. The state and
+          PIN code are enough for now.
+        } @else {
+          Choose the state, and the district and town lists fill in from it.
+        }
       </p>
     }
 

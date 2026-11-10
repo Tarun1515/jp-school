@@ -7,7 +7,7 @@ import {
   ToastService,
 } from 'jp-shared/core';
 import { Lookup, MASTER_KEYS } from 'jp-shared/models';
-import { UiBadgeComponent, UiButtonComponent } from 'jp-shared/ui';
+import { UiBadgeComponent, UiButtonComponent, UiComboboxComponent, lookupsToOptions } from 'jp-shared/ui';
 
 import { SchoolContextService } from '../../../core/school-context.service';
 import {
@@ -64,7 +64,7 @@ interface GalleryItem extends SchoolPhoto {
 @Component({
   selector: 'app-school-profile',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, UiBadgeComponent, UiButtonComponent],
+  imports: [FormsModule, UiBadgeComponent, UiButtonComponent, UiComboboxComponent],
   templateUrl: './school-profile.component.html',
   styleUrl: './school-profile.component.scss',
 })
@@ -111,6 +111,19 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
    */
   protected readonly hasDistricts = computed(() => this.districts().length > 0);
   protected readonly hasCities = computed(() => this.cities().length > 0);
+
+  /*
+    SR-3 (G27). The three geography masters as combobox options.
+
+    ⚠️ COMPUTED, NOT MAPPED INLINE IN THE TEMPLATE. `lookupsToOptions(states())`
+    written in the binding rebuilds the array on every change-detection pass and
+    hands <ui-combobox> a new `options` identity each time — which defeats the
+    OnPush it was given. A computed changes identity only when the master behind
+    it actually changes.
+  */
+  protected readonly stateOptions = computed(() => lookupsToOptions(this.states()));
+  protected readonly districtOptions = computed(() => lookupsToOptions(this.districts()));
+  protected readonly cityOptions = computed(() => lookupsToOptions(this.cities()));
 
   // ---- facilities ---------------------------------------------------------
   protected readonly selectedFacilities = signal<ReadonlySet<number>>(new Set());

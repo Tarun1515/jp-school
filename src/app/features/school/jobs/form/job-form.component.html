@@ -65,61 +65,80 @@
             </select>
           </div>
 
-          <div class="field">
-            <label class="field__label" for="subjectId">
-              Primary subject @if (locked()) { <span class="field__lock">locked</span> }
-            </label>
-            <select
-              id="subjectId"
-              name="subjectId"
-              class="form-control"
-              [(ngModel)]="form.subjectId"
-              [disabled]="locked()"
-            >
-              <option [value]="0">Choose a subject</option>
-              @for (s of subjects(); track s.id) {
-                <option [value]="s.id">{{ s.name }}</option>
-              }
-            </select>
-          </div>
+          <!--
+            🔴 SR-3 (G27): SEARCHABLE, NOT A PLAIN SELECT.
+
+            The subject master is long and gets longer, and a native <select>
+            over it is a list you can only use if you already know roughly
+            where the name falls alphabetically.
+
+            ⚠️ <ui-combobox> RENDERS ITS OWN .field WRAPPER AND LABEL, so the
+            hand-written ones are gone rather than duplicated — and with them
+            the <span class="field__lock"> that lived inside the label. The
+            lock is still said, in the label text, because the one thing worse
+            than a marker in a different shape is a locked field that does not
+            say so.
+
+            ⚠️ [required] BECAUSE IT IS. A job cannot be saved without a
+            subject, and the combobox prints "Optional" beside the label
+            wherever [required] is absent — which would be a plain lie here.
+
+            ⚠️ STILL COMMITS AN ID. onSubjectChange keeps 0 as "not chosen",
+            which is exactly what the placeholder option carried.
+          -->
+          <ui-combobox
+            name="subjectId"
+            [label]="locked() ? 'Primary subject (locked)' : 'Primary subject'"
+            placeholderOption="Choose a subject"
+            [options]="subjectOptions()"
+            [required]="true"
+            [disabled]="locked()"
+            [ngModel]="form.subjectId"
+            (ngModelChange)="onSubjectChange($event)"
+          />
         </div>
 
         <div class="field__row">
-          <div class="field">
-            <label class="field__label" for="designationId">
-              Designation @if (locked()) { <span class="field__lock">locked</span> }
-            </label>
-            <select
-              id="designationId"
-              name="designationId"
-              class="form-control"
-              [(ngModel)]="form.designationId"
-              [disabled]="locked()"
-            >
-              <option [value]="0">Choose a designation</option>
-              @for (d of designations(); track d.id) {
-                <option [value]="d.id">{{ d.name }}</option>
-              }
-            </select>
-          </div>
+          <!-- 🔴 SR-3 (G27), for the same reasons as the subject above it. -->
+          <ui-combobox
+            name="designationId"
+            [label]="locked() ? 'Designation (locked)' : 'Designation'"
+            placeholderOption="Choose a designation"
+            [options]="designationOptions()"
+            [required]="true"
+            [disabled]="locked()"
+            [ngModel]="form.designationId"
+            (ngModelChange)="onDesignationChange($event)"
+          />
 
-          <div class="field">
-            <label class="field__label" for="qualificationId">
-              Minimum qualification @if (locked()) { <span class="field__lock">locked</span> }
-            </label>
-            <select
-              id="qualificationId"
-              name="qualificationId"
-              class="form-control"
-              [(ngModel)]="form.qualificationId"
-              [disabled]="locked()"
-            >
-              <option [ngValue]="null">No specific requirement</option>
-              @for (q of qualifications(); track q.id) {
-                <option [value]="q.id">{{ q.name }}</option>
-              }
-            </select>
-          </div>
+          <!--
+            🔴 SR-3 (G27), for the same reasons as the subject and designation
+            above — the combobox's own docstring names the qualification master
+            as having this problem at smaller scale.
+
+            ⚠️ NO [required] HERE, UNLIKE ITS TWO NEIGHBOURS, AND THAT IS NOT AN
+            OMISSION. `USP_SaveJob` takes `@QualificationId int = NULL` — a
+            default, where `@SubjectId` and `@DesignationId` have none — so a
+            job with no minimum qualification is a job the server accepts. The
+            combobox prints "Optional" beside the label wherever [required] is
+            absent, which is the truth here, and it keeps its clear (×) button,
+            which is what the old `<option [ngValue]="null">No specific
+            requirement</option>` row was for. Marking it required would put a
+            false claim on the form and block a save the server allows.
+
+            ⚠️ The lock is said in the label text, because <ui-combobox> renders
+            its own .field wrapper and label and the <span class="field__lock">
+            that lived inside the hand-written one has nowhere left to go.
+          -->
+          <ui-combobox
+            name="qualificationId"
+            [label]="locked() ? 'Minimum qualification (locked)' : 'Minimum qualification'"
+            placeholderOption="No specific requirement"
+            [options]="qualificationOptions()"
+            [disabled]="locked()"
+            [ngModel]="form.qualificationId"
+            (ngModelChange)="onQualificationChange($event)"
+          />
         </div>
 
         <!--

@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { MasterService, ToastService } from 'jp-shared/core';
+import { BillingService, MasterService, Plan, ToastService } from 'jp-shared/core';
 import { DocumentType, Lookup, MASTER_KEYS, RequestDocument, SaveDraftBody } from 'jp-shared/models';
+import { UiComboboxComponent, lookupsToOptions } from 'jp-shared/ui';
 
 import { RegistrationService } from '../../../core/registration.service';
 
@@ -19,6 +20,45 @@ import { RegistrationService } from '../../../core/registration.service';
   ⚠️ THE CONTACT STEP GOT SHORTER IN THE SAME CHANGE — the principal and HR
   fields moved to the profile — so the form is six steps and no longer than it
   was.
+*/
+/*
+  🔴 SR-4 ADDS THE PLAN CHOICE AND DOES **NOT** ADD A SEVENTH STEP.
+
+  ---------------------------------------------------------------------------
+  THE DECISION, AND THE THREE REASONS FOR IT
+  ---------------------------------------------------------------------------
+  The plan question lives inside `review`, as the last block before the submit
+  button. STEPS is unchanged.
+
+  1. IT IS NOT A FACT THE ADMIN VERIFIES. Every one of the five collecting
+     steps gathers a claim the school makes about itself, which a human then
+     checks against the documents in step 5. The plan is a commercial
+     preference with no bearing on whether the school exists. Making it a peer
+     of those steps would imply it is part of the application being reviewed,
+     and the first consequence of that is an admin wondering whether they are
+     supposed to approve it.
+
+  2. 🔴 A STEP OF PRICED PLAN CARDS INSIDE A VERIFICATION FORM READS AS A
+     CHECKOUT — and that is the exact failure this feature must not have. A
+     school picking Standard has bought NOTHING: it starts on the free plan and
+     stays there until somebody confirms a payment. A full step with its own
+     heading, its own progress segment and three priced cards would feel like
+     the payment step of a purchase, and a form that implies a school has
+     bought something it has not is the worst possible outcome here.
+
+  3. BESIDE THE SUBMIT BUTTON IS WHERE THE CAVEAT DOES ITS WORK. "You will
+     start on the free plan until we have confirmed your payment" has to be
+     read, and the last thing read before pressing a button is the thing beside
+     it. Three screens earlier it is a sentence they scrolled past.
+
+  ⚠️ AND THE FORM DOES NOT GET LONGER. Six steps was already a lot — SR-3 had
+  to shorten the contact step to afford the logo one — and the brief is explicit
+  that it must not grow without reason. One radio group does not need a screen.
+
+  ⚠️ WHY `review` AND NOT `basics`. The review step stays a read-only SUMMARY
+  of the school's details; the plan block is not part of that summary, it is
+  part of the SEND. That distinction is why the plan has no "Edit" link beside
+  it like the other sections do — there is nowhere else to edit it.
 */
 const STEPS = ['basics', 'address', 'logo', 'contact', 'documents', 'review'] as const;
 type Step = (typeof STEPS)[number];
@@ -68,13 +108,36 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'failed';
  * more than one campus — a UI flag that changes what the dashboard shows later
  * and nothing about the data. Branch management is Phase 3, after approval.
  *
- * Anything about price. Pricing is not finalised, the public FAQ says so, and
- * a number shown during registration is one we would be held to.
+ * ----------------------------------------------------------------------------
+ * 🔴 SR-4: THE FORM NOW OFFERS A PLAN, AND IT BUYS NOTHING
+ * ----------------------------------------------------------------------------
+ * This used to say the form deliberately asked nothing about price, because
+ * "pricing is not finalised, the public FAQ says so, and a number shown during
+ * registration is one we would be held to". The client has since asked for the
+ * choice to be on the form, and has given figures — PLACEHOLDER figures, which
+ * 013_seed_school_plans.sql records and marks in the plan NAME, with a build
+ * guard that fails if the marker is removed while they are still dummy.
+ *
+ * So the reasoning did not go away; it moved into how the numbers are shown:
+ *
+ *   · the plan NAME is rendered verbatim, carrying "(SAMPLE PRICING)";
+ *   · the public FAQ's own hedge is repeated beside the prices, word for word,
+ *     rather than reworded into a second caveat that could drift from it;
+ *   · "Register as Free" is pre-selected, so the default costs nothing and
+ *     commits to nothing.
+ *
+ * 🔴 AND CHOOSING A PAID PLAN DOES NOT MAKE THE ACCOUNT PAID. It records an
+ * intention on the draft. At approval the account is provisioned on the FREE
+ * plan — exactly as it always was — and a pending plan-change request is opened
+ * beside it for an admin to verify a payment against. The screen says that in
+ * so many words, before the submit button and again on the status page, because
+ * a form that implies a school has bought something it has not is the single
+ * worst thing this feature could do.
  */
 @Component({
   selector: 'app-registration',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [FormsModule, UiComboboxComponent],
   templateUrl: './registration.component.html',
   styleUrl: './registration.component.scss',
 })
@@ -83,6 +146,19 @@ export class RegistrationComponent {
   private readonly masters = inject(MasterService);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
+
+  /**
+   * 🔴 SR-4. The plan catalogue, from the one service that knows about plans.
+   *
+   * ⚠️ `loadPlans()`, NOT `load()`. The full load also asks for
+   * `/billing/my-plan` and `/billing/my-history`, and a school filling in this
+   * form has neither — it is applying to exist. Those calls would fail
+   * legitimately, set the service's `hasFailed`, and the billing screen would
+   * later open saying "your plan could not be loaded" because of a request this
+   * form made. `loadPlans()` exists so there is still exactly one place that
+   * knows the catalogue's URL (G27).
+   */
+  private readonly billing = inject(BillingService);
 
   protected readonly steps = STEP_META;
 
@@ -150,6 +226,21 @@ export class RegistrationComponent {
   protected readonly hasTehsils = computed(() => this.tehsils().length > 0);
   protected readonly hasCities = computed(() => this.cities().length > 0);
 
+  /*
+    SR-3 (G27). The four geography masters as combobox options.
+
+    ⚠️ COMPUTED, NOT MAPPED INLINE IN THE TEMPLATE. `lookupsToOptions(states())`
+    written in the binding rebuilds the array on every change-detection pass and
+    hands <ui-combobox> a new `options` identity each time — which defeats the
+    OnPush it was given. A computed changes identity only when the master behind
+    it actually changes, which for a cascading address form is exactly the four
+    moments that matter.
+  */
+  protected readonly stateOptions = computed(() => lookupsToOptions(this.states()));
+  protected readonly districtOptions = computed(() => lookupsToOptions(this.districts()));
+  protected readonly tehsilOptions = computed(() => lookupsToOptions(this.tehsils()));
+  protected readonly cityOptions = computed(() => lookupsToOptions(this.cities()));
+
   // ---- documents ----------------------------------------------------------
   protected readonly uploaded = signal<RequestDocument[]>([]);
   protected readonly uploading = signal<number | null>(null);
@@ -189,6 +280,95 @@ export class RegistrationComponent {
     () => !!this.requestId() && this.missingMandatory().length === 0 && !this.submitting(),
   );
 
+  // ---- the plan choice (SR-4) ---------------------------------------------
+  /**
+   * Every plan a school may register on, in the catalogue's own order.
+   */
+  protected readonly plans = this.billing.plans;
+
+  /**
+   * 🔴 THE FREE PLAN, FOUND BY ITS `isDefault` FLAG — NOT BY ITS CODE.
+   *
+   * The default plan is a property of the catalogue (one per user type, held by
+   * a unique index), and it is the SAME row provisioning reads to decide what a
+   * new account starts on. Deriving it here means this screen and provisioning
+   * cannot disagree about which plan "free" is, where
+   * `find(p => p.planCode === 'SCHOOL_FREE')` would be this component's own
+   * second opinion.
+   *
+   * ⚠️ The price fallback is for a catalogue that somehow has no default at
+   * all: a free plan is still a better guess than the first row, which could be
+   * a paid one. Provisioning refuses outright in that case, so the honest
+   * outcome here is that no paid plan gets pre-selected either.
+   */
+  protected readonly freePlan = computed<Plan | null>(
+    () => this.plans().find((p) => p.isDefault)
+      ?? this.plans().find((p) => p.price === 0)
+      ?? null,
+  );
+
+  /** The paid tiers, cheapest first — the catalogue's DisplayOrder. */
+  protected readonly paidPlans = computed(() =>
+    this.plans().filter((p) => p.planId !== this.freePlan()?.planId));
+
+  /**
+   * What the radio group shows as selected.
+   *
+   * 🔴 "REGISTER AS FREE" IS PRE-SELECTED, which is the client's instruction
+   * and also the only pre-selection that can be made honestly: it is the plan
+   * the account is actually going to be on when it is approved, whatever is
+   * chosen here.
+   *
+   * ⚠️ A NULL draft value FALLS BACK to free rather than to nothing. Null means
+   * "not answered yet" — a draft started before this question existed — and
+   * showing no selection at all would make a school think it had to choose
+   * before it could send.
+   */
+  protected readonly chosenPlanCode = computed(
+    () => this.value('requestedPlanCode') ?? this.freePlan()?.planCode ?? null);
+
+  /** The chosen plan's row, when the catalogue has arrived. */
+  protected readonly chosenPlan = computed<Plan | null>(
+    () => this.plans().find((p) => p.planCode === this.chosenPlanCode()) ?? null);
+
+  /**
+   * 🔴 THE HONESTY FLAG. True when the school has asked for something it is
+   * not going to have when the account opens.
+   *
+   * Everything the screen says about "you will start on the free plan" hangs
+   * off this one predicate, so there is no path where a paid choice is shown
+   * without the caveat beside it.
+   */
+  protected readonly chosePaidPlan = computed(() => {
+    const chosen = this.chosenPlan();
+
+    return chosen !== null && chosen.planId !== this.freePlan()?.planId;
+  });
+
+  /**
+   * 🔴 The hedge, in the words the public FAQ already uses.
+   *
+   * The seeded answer to "What does it cost?" is exactly this sentence
+   * (jp_app/03_seed/003_seed_public_faqs.sql), and the billing page repeats the
+   * same one. Three surfaces, one sentence: a reworded version here would be a
+   * second caveat to keep in step, and the one that goes stale is always the one
+   * in code rather than the one the client can read as data.
+   */
+  protected readonly pricingHedge =
+    'Pricing is not finalised. If you are registering now, talk to us first so '
+    + 'there are no surprises later.';
+
+  /**
+   * ⚠️ True while a paid plan on offer still carries the placeholder marker.
+   *
+   * Read off the catalogue, not hardcoded, so the caveat disappears by itself
+   * the day the real list arrives: 013_seed_school_plans.sql changes the Price
+   * and drops "(SAMPLE PRICING)" from the names in ONE commit, which its own
+   * build guard insists on.
+   */
+  protected readonly pricesArePlaceholders = computed(() =>
+    this.plans().some((p) => p.price > 0 && p.name.includes('SAMPLE PRICING')));
+
   constructor() {
     for (const [key, target] of [
       [MASTER_KEYS.board, this.boards],
@@ -217,6 +397,18 @@ export class RegistrationComponent {
       next: (items) => this.documentTypes.set(items),
       error: () => this.documentTypes.set([]),
     });
+
+    /*
+      🔴 SR-4. The plans, from the server, for the review step's choice.
+
+      ⚠️ A FAILURE IS NOT FATAL AND NOT ANNOUNCED. `plans()` stays empty, the
+      plan block renders the free option alone, the draft carries no paid code
+      and the account opens on the free plan — which is the state a school would
+      have been in anyway. Blocking a registration because a price list could
+      not be fetched would cost us the account over something nobody asked for
+      yet.
+    */
+    this.billing.loadPlans();
 
     this.registration.getDraft().subscribe({
       next: (draft) => {
@@ -250,6 +442,16 @@ export class RegistrationComponent {
               contactMobile: d.contactMobile,
               website: d.website,
               aboutSchool: d.aboutSchool,
+
+              /*
+                🔴 SR-4. Carried back onto a resumed draft like every other
+                field. A school that chose Standard on Monday and finishes on
+                Thursday must find Standard still selected — a choice that
+                silently reverted to Free would be the mirror image of the
+                dishonesty this feature is built to avoid, and the school would
+                only find out weeks later when no invoice arrived.
+              */
+              requestedPlanCode: d.requestedPlanCode,
             });
 
             if (d.stateId) {
@@ -422,6 +624,65 @@ export class RegistrationComponent {
         this.logoError.set(message || 'That file could not be uploaded. Try a JPG or PNG under 10 MB.');
       },
     });
+  }
+
+  // ---- the plan choice (SR-4) ---------------------------------------------
+  /**
+   * 🔴 SAVES IMMEDIATELY, AND THAT IS NOT BELT-AND-BRACES — IT IS THE BUG.
+   *
+   * The draft is normally persisted by `next()` on a step change. The plan
+   * choice is made ON the last step, and `submit()` does NOT save first: it
+   * posts the request id to `/draft/{id}/submit` and the server reads whatever
+   * is already stored. So a plan chosen on the review screen and not saved here
+   * would be dropped between the click and the registration — the school would
+   * have asked for Standard, seen it selected, pressed send, and got nothing.
+   *
+   * That is the same class of failure SR-0 found in
+   * USP_ProvisionSchoolFromApproval: a field the form collected and the next
+   * step never carried. One save call is the whole fix, and the step header's
+   * existing "Saving… / Saved" indicator reports it without a toast.
+   */
+  protected choosePlan(planCode: string): void {
+    if (planCode === this.value('requestedPlanCode')) return;
+
+    this.set('requestedPlanCode', planCode);
+    this.save();
+  }
+
+  /**
+   * ⚠️ "Free", not "₹0". The free plan's price is zero and a price tag reading
+   * ₹0 beside two real figures invites the reader to wonder what the catch is.
+   *
+   * ⚠️ The duration is named when there is one, because ₹1,499 means nothing
+   * without "for 30 days" beside it — and the catalogue carries DurationDays
+   * precisely so a screen never has to assume "per month".
+   */
+  protected priceLabel(plan: Plan): string {
+    if (plan.price === 0) return 'Free';
+
+    return plan.durationDays === null
+      ? `₹${plan.price.toLocaleString('en-IN')}`
+      : `₹${plan.price.toLocaleString('en-IN')} for ${plan.durationDays} days`;
+  }
+
+  /**
+   * What a plan includes, as one short line.
+   *
+   * ⚠️ DELIBERATELY BRIEFER THAN THE BILLING PAGE'S TABLE. This is a
+   * registration form, and the full comparison lives on /billing where a school
+   * can read it with its real usage beside it. Reproducing that table here
+   * would be the second copy G27 warns about — and it would turn the block into
+   * the pricing page this step must not become.
+   *
+   * ⚠️ `null` is "Unlimited", never "0" — the engine's convention, and the one a
+   * screen is most likely to get backwards.
+   */
+  protected includesLine(plan: Plan): string {
+    const parts = plan.features
+      .filter((f) => f.isIncluded)
+      .map((f) => (f.quotaPerPeriod === null ? `${f.featureName}: unlimited` : `${f.featureName}: ${f.quotaPerPeriod}`));
+
+    return parts.length > 0 ? parts.join(' · ') : 'The basics, to get you started.';
   }
 
   // ---- validation, per step ----------------------------------------------

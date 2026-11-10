@@ -91,6 +91,23 @@
   color: var(--jp-text-subtle);
 }
 
+// 🔴 SR-4. "You asked for a paid plan and you are not on it yet."
+//
+// A warning rule rather than the receipt's green one, and that is the whole
+// decision: green would read as "sorted", and the point of this line is that
+// something is outstanding. Not danger either — nothing has gone wrong, and a
+// red rule on the screen of the most anxious action in the product would be
+// read as a rejection.
+.status__plan {
+  margin-top: v.$space-4;
+  padding: v.$space-3 v.$space-4;
+  border-left: var(--jp-margin-rule-width) solid var(--jp-warning);
+  background: var(--jp-surface-alt);
+  border-radius: 0 var(--jp-radius-md) var(--jp-radius-md) 0;
+  font-size: var(--jp-font-size-sm);
+  line-height: var(--jp-line-height-relaxed);
+}
+
 // 🔴 What was sent back, and why. The single most useful thing on this screen
 // when it applies, so it sits above "what happens next" rather than under it.
 .status__returned {
