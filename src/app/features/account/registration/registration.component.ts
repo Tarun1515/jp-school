@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { BillingService, MasterService, Plan, ToastService } from 'jp-shared/core';
+import { BillingService, MasterService, Plan, ResolvedAddress, ToastService } from 'jp-shared/core';
 import { DocumentType, Lookup, MASTER_KEYS, RequestDocument, SaveDraftBody } from 'jp-shared/models';
-import { UiComboboxComponent, lookupsToOptions } from 'jp-shared/ui';
+import { UiAddressSearchComponent, UiComboboxComponent, lookupsToOptions } from 'jp-shared/ui';
 
 import { RegistrationService } from '../../../core/registration.service';
 
@@ -137,7 +137,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'failed';
 @Component({
   selector: 'app-registration',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, UiComboboxComponent],
+  imports: [UiAddressSearchComponent, FormsModule, UiComboboxComponent],
   templateUrl: './registration.component.html',
   styleUrl: './registration.component.scss',
 })
@@ -813,6 +813,117 @@ export class RegistrationComponent {
       */
       error: () => this.tehsils.set([]),
     });
+  }
+
+  /**
+   * An address picked in the search box, written into the same fields the
+   * cascade writes.
+   *
+   * ============================================================================
+   * 🔴 THE SEQUENCING IS THE DRAFT-RELOAD PATH'S, NOT THE onXChange HANDLERS'
+   * ============================================================================
+   * This is the same problem the constructor solves when it resumes a saved
+   * draft: ids arriving all at once, and every dependent list having to exist so
+   * its control is drawn and can show the value. So it is done the same way, and
+   * deliberately not any other way:
+   *
+   *   1. all the ids are written in ONE update;
+   *   2. the three lists are emptied, because every one of them belongs to a
+   *      parent that has just changed;
+   *   3. `loadDistricts` / `loadCities` / `loadTehsilsForCity` are called FROM
+   *      THE RESOLVED IDS, all three issued together — nothing waits for
+   *      anything, because every parent is already in hand.
+   *
+   * 🔴 NOT `onStateChange` / `onDistrictChange` / `onCityChange`. Those three
+   * also CLEAR the level below them — right when a person changes a parent, and
+   * catastrophic here: calling them in cascade order would wipe the district,
+   * town and tehsil this method has just resolved, and the form would end up
+   * holding a state and nothing else. The loadX helpers only fill a signal,
+   * which is exactly what is wanted. The constructor's draft reload carries the
+   * same warning for the same reason.
+   *
+   * ⚠️ P1'S PARENTAGE: district -> CITY -> tehsil. The tehsil list comes from
+   * the TOWN (`MASTER_KEYS.tehsilByCity`), not from the district, so the third
+   * call takes `cityId`. A tehsil resolved for a town whose list we never
+   * fetched would sit in the form unreadable, because `hasTehsils()` hides a
+   * control with an empty list.
+   *
+   * ----------------------------------------------------------------------------
+   * 🔴 WHAT IS REPLACED, AND WHAT IS KEPT
+   * ----------------------------------------------------------------------------
+   * The five geography ids, the coordinates and the place id are replaced AS A
+   * SET, including with nulls. They describe ONE place; keeping a district from
+   * the address somebody looked up two minutes ago beside a state from this one
+   * produces a row nobody chose and nobody can explain — and it would make the
+   * "we could not find that district" note a lie, because the box would not be
+   * empty.
+   *
+   * ⚠️ THE USER'S OWN WORDS ARE NEVER OVERWRITTEN. `addressLine1` and
+   * `areaOrVillage` are filled only when they are empty: the provider's street
+   * line is a decent guess, and the text somebody typed about where their school
+   * is was never a guess. A village name in particular has no master to be
+   * matched against (ADDRESS_DESIGN §2) and is often the only part of an address
+   * the provider has never heard of.
+   *
+   * ⚠️ AND THE PIN CODE IS KEPT WHEN THE PROVIDER HAS NONE. Places frequently
+   * answers an establishment-level result with no postal_code, and deleting a
+   * PIN the school typed correctly because a third party said nothing is the
+   * exact failure this whole feature is written to avoid.
+   *
+   * ⚠️ NO SAVE HAPPENS HERE. The draft is persisted by `next()` on the step
+   * change, which is the very next thing this step can do — unlike the plan
+   * choice (SR-4), which is made on the last step where no step change follows
+   * and therefore has to save itself.
+   */
+  protected onAddressResolved(address: ResolvedAddress): void {
+    this.form.update((f) => ({
+      ...f,
+
+      // One place, one set of ids.
+      stateId: address.stateId,
+      districtId: address.districtId,
+      cityId: address.cityId,
+      tehsilId: address.tehsilId,
+      latitude: address.latitude,
+      longitude: address.longitude,
+      googlePlaceId: address.googlePlaceId,
+
+      // Theirs unless it is empty; the provider's only as a starting point.
+      addressLine1: f.addressLine1?.trim() ? f.addressLine1 : address.addressLine1,
+      areaOrVillage: f.areaOrVillage?.trim() ? f.areaOrVillage : address.areaOrVillage,
+      pincode: address.pincode ?? f.pincode,
+    }));
+
+    /*
+      ⚠️ The messages for the fields this just filled go with them. `set()`
+      clears an error as the user types for the same reason: an error still
+      showing after it has been fixed teaches people to ignore errors.
+    */
+    this.errors.update((e) => {
+      const next = { ...e };
+
+      for (const key of ['addressLine1', 'stateId', 'pincode']) {
+        delete next[key];
+      }
+
+      return next;
+    });
+
+    this.districts.set([]);
+    this.cities.set([]);
+    this.tehsils.set([]);
+
+    if (address.stateId) {
+      this.loadDistricts(address.stateId);
+    }
+
+    if (address.districtId) {
+      this.loadCities(address.districtId);
+    }
+
+    if (address.cityId) {
+      this.loadTehsilsForCity(address.cityId);
+    }
   }
 
   /**

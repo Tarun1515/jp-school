@@ -169,6 +169,55 @@
         <span class="field__helper">Optional — whatever you already call it on your own paperwork.</span>
       </div>
 
+      <!--
+        ==================================================================
+        🔴 AN ADDITION TO THE CASCADE BELOW, NOT A REPLACEMENT FOR IT
+        ==================================================================
+        The address lines, State, District, Town and PIN code under this are
+        unchanged and still work on their own. This box fills them in when it
+        can; a campus can be added without ever touching it.
+
+        🔴 IT RENDERS NOTHING WHEN THE PROVIDER IS OFF — today's shipped state,
+        since AddressLookupOptions.Provider defaults to `None` until the
+        client's key is installed. The component asks
+        `GET api/address/availability` once and draws nothing at all on
+        `available: false`, so this dialog looks exactly as it did before. The
+        same rule 2.47 applies to the district box: a control that can never
+        produce a result is worse than no control.
+
+        ⚠️ IT IS NOT A FORM CONTROL. No `formControlName`, no validator, nothing
+        in `save()` reads it — `this.form` is untouched by its presence, and the
+        Save button's behaviour does not change.
+
+        ⚠️ WHAT IT RESOLVES AND THIS FORM CANNOT KEEP: a tehsil, a village name
+        and the provider's place id, because `SaveBranchBody` and USP_SaveBranch
+        have no fields for them — see the note by the Town box below and
+        `onAddressResolved`. They are dropped rather than written into a form
+        that would report them as saved.
+
+        🔴 NO GOOGLE IS LOADED BY THIS PAGE: no script tag, no SDK, no key. The
+        browser calls our own three endpoints. See jp-shared AddressLookupService.
+      -->
+      <!--
+        ⚠️ WRAPPED IN THE DIALOG'S OWN CONDITION ON PURPOSE. `<ui-modal>` is
+        `@if (open())` INSIDE ITS OWN TEMPLATE, but this form is content
+        projected from here — so without a condition of its own the search box
+        is created with the page and lives for as long as the screen does, and
+        the words somebody typed while editing the North Campus would still be
+        in the box when they later opened "Add a campus".
+
+        ⚠️ IT COSTS NO EXTRA REQUEST. The availability answer is cached in
+        AddressLookupService for the session, so recreating the control
+        re-reads it rather than re-asking; and now nothing is asked at all until
+        somebody actually opens the dialog.
+      -->
+      @if (editing() !== null) {
+        <ui-address-search
+          class="form-grid__full"
+          label="Search for the campus address"
+          (resolved)="onAddressResolved($event)" />
+      }
+
       <div class="field form-grid__full">
         <label class="field__label" for="addressLine1">Address</label>
         <input class="form-control" id="addressLine1" type="text" formControlName="addressLine1" />

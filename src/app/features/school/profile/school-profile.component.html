@@ -429,6 +429,25 @@
 
       <div class="card__body">
         <div class="form-grid">
+          <!--
+            🔴 THE THIRD ADDRESS CASCADE IN THE PRODUCT, AND IT WAS THE ONE
+            LEFT WITHOUT A SEARCH BOX.
+
+            Registration and the campus form both got one; this did not, and
+            the gap was only visible by opening the page — a school could fill
+            its address from Places while registering and then find only
+            dropdowns when it came back to correct it. The control is shared
+            now, so closing the gap is one tag.
+
+            ⚠️ IT RENDERS ITSELF, OR NOT AT ALL: it asks the API whether a
+            provider is configured, so no guard belongs here.
+          -->
+          <ui-address-search
+            class="form-grid__full"
+            label="Search for your school's address"
+            (resolved)="onAddressResolved($event)"
+          />
+
           <div class="field form-grid__full">
             <label class="field__label" for="addressLine1">
               Address <span class="pill pill--public">public</span>

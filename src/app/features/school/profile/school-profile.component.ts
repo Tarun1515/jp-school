@@ -4,10 +4,17 @@ import {
   ConfirmDialogService,
   HasUnsavedChanges,
   MasterService,
+  ResolvedAddress,
   ToastService,
 } from 'jp-shared/core';
 import { Lookup, MASTER_KEYS } from 'jp-shared/models';
-import { UiBadgeComponent, UiButtonComponent, UiComboboxComponent, lookupsToOptions } from 'jp-shared/ui';
+import {
+  UiAddressSearchComponent,
+  UiBadgeComponent,
+  UiButtonComponent,
+  UiComboboxComponent,
+  lookupsToOptions,
+} from 'jp-shared/ui';
 
 import { SchoolContextService } from '../../../core/school-context.service';
 import {
@@ -64,7 +71,13 @@ interface GalleryItem extends SchoolPhoto {
 @Component({
   selector: 'app-school-profile',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, UiBadgeComponent, UiButtonComponent, UiComboboxComponent],
+  imports: [
+    FormsModule,
+    UiAddressSearchComponent,
+    UiBadgeComponent,
+    UiButtonComponent,
+    UiComboboxComponent,
+  ],
   templateUrl: './school-profile.component.html',
   styleUrl: './school-profile.component.scss',
 })
@@ -253,6 +266,56 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
 
     if (profile.districtId) {
       this.loadCities(profile.districtId);
+    }
+  }
+
+  /**
+   * A place picked in the search box, applied to this form.
+   *
+   * ----------------------------------------------------------------------------
+   * 🔴 THE SAME SEQUENCING AS `apply()` ABOVE, AND FOR THE SAME REASON
+   * ----------------------------------------------------------------------------
+   * The ids are written first and the dependent lists are fetched from them —
+   * through `loadDistricts` / `loadCities`, NEVER `onStateChange` /
+   * `onDistrictChange`, because those two also clear the level below and would
+   * wipe the district and town this resolve just produced. Both fetches are
+   * issued together: every parent id is already in hand, so chaining them
+   * would add a round trip for information we have.
+   *
+   * ⚠️ THE GEOGRAPHY IDS ARE REPLACED AS A SET, nulls included. They describe
+   * one place — a district left over from the previous state is a value nobody
+   * chose, and it would make the control's "we could not find that district"
+   * line untrue.
+   *
+   * ⚠️ WHAT THIS FORM CANNOT KEEP IS NOT WRITTEN. `UpdateSchoolProfileBody`
+   * carries no tehsil, village, coordinates or place id — 036 added those
+   * columns to `t_app_schools` and nothing reads or writes them from here — so
+   * they are dropped rather than set on a draft `save()` cannot send. A field
+   * the server ignores is a field somebody will one day expect it to honour.
+   */
+  protected onAddressResolved(address: ResolvedAddress): void {
+    this.set('stateId', address.stateId, 'contact');
+    this.set('districtId', address.districtId, 'contact');
+    this.set('cityId', address.cityId, 'contact');
+
+    if (address.pincode) {
+      this.set('pincode', address.pincode, 'contact');
+    }
+
+    // The user's own words are never overwritten; an empty line is filled.
+    if (address.addressLine1 && !this.value('addressLine1')) {
+      this.set('addressLine1', address.addressLine1, 'contact');
+    }
+
+    this.districts.set([]);
+    this.cities.set([]);
+
+    if (address.stateId) {
+      this.loadDistricts(address.stateId);
+    }
+
+    if (address.districtId) {
+      this.loadCities(address.districtId);
     }
   }
 

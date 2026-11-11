@@ -110,6 +110,28 @@
   .form-check { margin-top: v.$space-2; }
 }
 
+/*
+  The address search box, which is a stacked block on this step rather than a
+  cell in a grid.
+
+  ⚠️ THE SPACING IS HERE AND NOT ON THE COMPONENT'S :host, BECAUSE THE TWO
+  CALLERS NEED DIFFERENT ANSWERS. Its own `.field` wrapper is the last element
+  inside the host, so `_forms.scss`'s `.field:last-child { margin-bottom: 0 }`
+  zeroes the gap it would otherwise inherit — correct inside the campus dialog,
+  where the control is a `.form-grid` cell and the grid's own gap spaces it, and
+  wrong here, where it would sit flush against the Address field below it.
+
+  🔴 `.addr-search--active` AND NOT THE BARE ELEMENT. The host element is in
+  this template, so it is in the DOM whether or not the search is available —
+  only its contents are conditional. Spacing the bare element would leave a 1rem
+  hole above the Address field on every deployment with no Places key, which is
+  today's, and "the form is exactly what it was" is the whole promise of the
+  availability check. The class is set by a host binding on `available()`.
+*/
+app-address-search.addr-search--active {
+  margin-bottom: v.$space-4;
+}
+
 .reg-actions {
   display: flex;
   align-items: center;

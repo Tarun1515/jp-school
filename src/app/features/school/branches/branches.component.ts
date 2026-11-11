@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ConfirmDialogService, MasterService, ToastService } from 'jp-shared/core';
+import { ConfirmDialogService, MasterService, ResolvedAddress, ToastService } from 'jp-shared/core';
 import { Lookup, MASTER_KEYS } from 'jp-shared/models';
 import {
   UiBadgeComponent,
@@ -9,6 +9,7 @@ import {
   UiComboboxComponent,
   UiModalComponent,
   lookupsToOptions,
+  UiAddressSearchComponent,
 } from 'jp-shared/ui';
 
 import { SchoolContextService } from '../../../core/school-context.service';
@@ -42,7 +43,14 @@ import { SaveBranchBody, SchoolBranch, SchoolService } from '../../../core/schoo
 @Component({
   selector: 'app-branches',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, UiBadgeComponent, UiButtonComponent, UiComboboxComponent, UiModalComponent],
+  imports: [
+    UiAddressSearchComponent,
+    ReactiveFormsModule,
+    UiBadgeComponent,
+    UiButtonComponent,
+    UiComboboxComponent,
+    UiModalComponent,
+  ],
   templateUrl: './branches.component.html',
   styleUrl: './branches.component.scss',
 })
@@ -285,6 +293,80 @@ export class BranchesComponent {
       next: (items) => this.cities.set(items),
       error: () => this.cities.set([]),
     });
+  }
+
+  /**
+   * An address picked in the search box, written into the campus form.
+   *
+   * ============================================================================
+   * 🔴 THE SEQUENCING IS `openEdit`'s, NOT THE CASCADE HANDLERS'
+   * ============================================================================
+   * This is the same shape of problem `openEdit` already solves — ids arriving
+   * together, and both dependent lists having to exist before their controls are
+   * drawn — so it is solved the same way, and the warnings there apply here word
+   * for word:
+   *
+   *   1. one `patchValue`, `{ emitEvent: false }`;
+   *   2. both lists emptied, because both belong to parents that just changed;
+   *   3. `loadDistricts` / `loadCities` called FROM THE RESOLVED IDS, neither
+   *      waiting for the other.
+   *
+   * 🔴 `{ emitEvent: false }` IS LOAD-BEARING, AND MORE SO HERE THAN ANYWHERE.
+   * The cascade hangs off `stateId.valueChanges` and `districtId.valueChanges`
+   * (see the constructor), and those handlers CLEAR the level below them.
+   * Patching with events on would fire `onStateChange`, which would null the
+   * district and city this method has just resolved, and then fire
+   * `onDistrictChange` on that null — the campus would end up with a state and
+   * nothing else, after the user watched the right answer appear and vanish.
+   *
+   * 🔴 THE LISTS ARE REFILLED THROUGH loadDistricts / loadCities, which only
+   * fetch. The clearing lives in the handlers, and that separation is exactly
+   * what lets a restore — `openEdit`'s, or this one — fill a list without
+   * re-entering the cascade that would wipe the value it is trying to show.
+   *
+   * ----------------------------------------------------------------------------
+   * ⚠️ THE CAMPUS FORM CANNOT STORE EVERYTHING THE RESOLVE RETURNS
+   * ----------------------------------------------------------------------------
+   * `address.tehsilId`, `address.areaOrVillage` and `address.googlePlaceId` are
+   * DROPPED here, because `SaveBranchBody` and USP_SaveBranch carry no such
+   * fields — the same gap the template note by the Town box records. The COLUMNS
+   * exist on t_app_school_branches (036_alter_address_columns.sql adds TehsilId,
+   * AreaOrVillage and GooglePlaceId); only the contract is missing.
+   *
+   * 🔴 WRITING THEM INTO THE FORM ANYWAY WOULD BE WORSE THAN DROPPING THEM:
+   * `save()` cannot send what the body has no field for, so the school would be
+   * told "Campus updated" about facts that were never stored. An unmatched level
+   * the search box reports is still reported honestly — the control's note names
+   * what our masters did not contain, whichever form it is sitting on.
+   *
+   * ⚠️ `addressLine1` IS FILLED ONLY WHEN IT IS EMPTY. The provider's street
+   * line is a guess; what somebody typed about their own campus is not. And the
+   * PIN code is kept when the provider returns none, because Places often
+   * answers an establishment with no postal_code and deleting a correct PIN over
+   * a third party's silence is the failure this feature must not have.
+   */
+  protected onAddressResolved(address: ResolvedAddress): void {
+    const typedLine1 = this.form.controls.addressLine1.value.trim();
+
+    this.form.patchValue({
+      // One place, one set of ids — replaced together, nulls included.
+      stateId: address.stateId,
+      districtId: address.districtId,
+      cityId: address.cityId,
+      latitude: address.latitude,
+      longitude: address.longitude,
+
+      // ⚠️ The form is nonNullable and these two controls are strings, so a
+      // null from the provider becomes '' rather than being written as null.
+      addressLine1: typedLine1 ? typedLine1 : address.addressLine1 ?? '',
+      pincode: address.pincode ?? this.form.controls.pincode.value,
+    }, { emitEvent: false });
+
+    this.districts.set([]);
+    this.cities.set([]);
+
+    if (address.stateId) this.loadDistricts(address.stateId);
+    if (address.districtId) this.loadCities(address.districtId);
   }
 
   protected save(): void {

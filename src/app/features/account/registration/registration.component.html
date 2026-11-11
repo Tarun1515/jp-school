@@ -207,6 +207,41 @@
 
         <!-- ================= 2. ADDRESS ================= -->
         @if (step() === 'address') {
+          <!--
+            ==================================================================
+            🔴 THE SEARCH BOX IS AN ADDITION TO THE CASCADE BELOW, NOT A
+               REPLACEMENT FOR IT
+            ==================================================================
+            Everything under it — the address lines, State/District/Town/Tehsil,
+            the village box, the PIN code — is unchanged and still works on its
+            own. This box fills those fields in when it can; the school can
+            ignore it entirely and fill them in by hand, which is what every
+            school does today.
+
+            🔴 IT RENDERS NOTHING WHEN THE PROVIDER IS OFF, which is TODAY's
+            shipped state (AddressLookupOptions.Provider defaults to `None`
+            until the client's key is installed). The component asks
+            `GET api/address/availability` once and draws nothing at all on
+            `available: false` — so this step looks exactly as it did before,
+            with no empty box and no explanation of a feature nobody asked for.
+            The same rule 2.47 applies to the district dropdown: a control that
+            can never produce a result is worse than no control.
+
+            ⚠️ IT IS ABOVE THE ADDRESS LINES, not merely above the dropdowns.
+            It fills `addressLine1` and the PIN code as well as the four ids, so
+            putting it under the boxes it fills would have people typing an
+            address and then being offered a way to look it up.
+
+            ⚠️ NOTHING ABOUT THIS STEP'S VALIDATION KNOWS IT EXISTS.
+            `validate('address')` asks for `addressLine1` and `stateId`, exactly
+            as before; the search box carries no value anybody submits.
+
+            🔴 NO GOOGLE IS LOADED BY THIS PAGE. There is no script tag, no SDK
+            and no key in the client — the browser calls our own three endpoints
+            and the API talks to the provider. See jp-shared AddressLookupService.
+          -->
+          <ui-address-search (resolved)="onAddressResolved($event)" />
+
           <div class="field">
             <label class="field__label" for="addressLine1">Address</label>
             <input class="form-control" id="addressLine1" type="text"
