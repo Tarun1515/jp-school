@@ -66,33 +66,43 @@
           </div>
 
           <div class="form-grid">
-            <div class="field">
-              <label class="field__label" for="schoolTypeId">
-                Type <span class="field__optional">optional</span>
-              </label>
-              <select class="form-control" id="schoolTypeId"
-                      [ngModel]="value('schoolTypeId')"
-                      (ngModelChange)="set('schoolTypeId', $event)">
-                <option [ngValue]="null">Choose…</option>
-                @for (item of schoolTypes(); track item.id) {
-                  <option [ngValue]="item.id">{{ item.name }}</option>
-                }
-              </select>
-            </div>
+            <!--
+              P1 (G27): THE LAST TWO PLAIN SELECTS ON THIS FORM, CONVERTED.
 
-            <div class="field">
-              <label class="field__label" for="boardId">
-                Board <span class="field__optional">optional</span>
-              </label>
-              <select class="form-control" id="boardId"
-                      [ngModel]="value('boardId')"
-                      (ngModelChange)="set('boardId', $event)">
-                <option [ngValue]="null">Choose…</option>
-                @for (item of boards(); track item.id) {
-                  <option [ngValue]="item.id">{{ item.name }}</option>
-                }
-              </select>
-            </div>
+              Both lists are short — six school types, seven boards — so this
+              buys no search box: <ui-combobox> only grows one at `searchFrom`
+              (8) and below that it opens showing everything, which is the whole
+              point of that default. What it buys is G27: one select in the
+              product, so the next fix to its keyboard handling or its open-list
+              placement lands here too instead of everywhere except two boxes
+              nobody remembered.
+
+              ⚠️ THE HAND-WRITTEN LABEL AND "optional" SPAN ARE GONE, NOT
+              DUPLICATED. The combobox renders its own .field wrapper and label,
+              and prints "Optional" itself wherever [required] is absent.
+
+              ⚠️ placeholderOption="Choose…" IS THE OLD <option> TEXT, KEPT ON
+              PURPOSE. The combobox's default placeholder is "Type to search…",
+              which is a promise it does not keep below `searchFrom`: with six
+              options the input is readonly and typing does nothing. "Choose…"
+              is what these two boxes have always said.
+
+              ⚠️ AND THE LABEL IS "School type", NOT "Type". Beside a box whose
+              placeholder is about typing, the one-word noun reads as the verb.
+            -->
+            <ui-combobox
+              label="School type"
+              placeholderOption="Choose…"
+              [options]="schoolTypeOptions()"
+              [ngModel]="value('schoolTypeId')"
+              (ngModelChange)="set('schoolTypeId', $event)" />
+
+            <ui-combobox
+              label="Board"
+              placeholderOption="Choose…"
+              [options]="boardOptions()"
+              [ngModel]="value('boardId')"
+              (ngModelChange)="set('boardId', $event)" />
 
             <div class="field">
               <label class="field__label" for="affiliationNumber">
@@ -216,7 +226,29 @@
           </div>
 
           <!--
-            🔴 SR-3 (G27): THESE FOUR ARE COMBOBOXES, NOT PLAIN SELECTS.
+            ==================================================================
+            🔴 P1: THE ORDER OF THESE FIVE QUESTIONS IS THE FEATURE.
+            ==================================================================
+            It was State -> District -> Tehsil -> Town, which is the
+            administrative hierarchy and is not how a person describes where
+            their school is. And in Haryana every town is a tehsil headquarters
+            with the same name (012_seed_haryana_geography.sql seeds exactly
+            one city per tehsil), so the user met "Gohana" in two adjacent boxes
+            and picked whichever came first.
+
+            It is now
+
+                State -> District -> Town/city -> Tehsil/Sub-tehsil -> Village
+
+            town-first, with the tehsil offered afterwards as a detail OF the
+            chosen town and never required. The cascade in the .ts matches this
+            exactly: each control is fed by the one above it.
+
+            🔴 NOTHING ABOUT THE DATA MOVED — same five fields, same names, same
+            endpoint. See the cascade comment in registration.component.ts.
+
+            ------------------------------------------------------------------
+            🔴 SR-3 (G27): THESE ARE COMBOBOXES, NOT PLAIN SELECTS.
 
             SR-1 seeded 143 Haryana tehsils and 143 towns, and will seed every
             other state's in time. A native <select> over 143 options is a list
@@ -253,12 +285,17 @@
             <!--
               🔴 HIDDEN, not disabled-and-empty.
 
-              The district and city dataset has not been imported (2.47). An
-              empty dropdown reads as "this form is broken" and is the single
+              ⚠️ THIS USED TO SAY "the district and city dataset has not been
+              imported (2.47)", AND SR-5 MADE THAT FALSE — 782 districts and 902
+              towns are seeded. What is still true is that the list is empty
+              before a state is chosen, and for any state we have not seeded.
+
+              An empty dropdown reads as "this form is broken" and is the single
               most likely thing to stop a real registration on day one; a
               disabled one is something people keep clicking at.
 
-              So the control is absent and one line says why.
+              So the control is absent and the note at the foot of the step says
+              which of those two it is.
             -->
             @if (hasDistricts()) {
               <ui-combobox
@@ -269,24 +306,49 @@
             }
 
             <!--
-              SR-1. The optional level between district and town. Shown only
-              when the state has one — Haryana does; nothing else does yet.
-            -->
-            @if (hasTehsils()) {
-              <ui-combobox
-                label="Tehsil"
-                helper="Narrows the town list. Skip it if you are not sure."
-                [options]="tehsilOptions()"
-                [ngModel]="value('tehsilId')"
-                (ngModelChange)="onTehsilChange($event)" />
-            }
+              🔴 P1: THE TOWN IS ASKED BEFORE THE TEHSIL, AND IT IS THE TEHSIL'S
+              PARENT.
 
+              It is the question a school can always answer about itself, so it
+              comes first; everything finer is optional after it.
+            -->
             @if (hasCities()) {
               <ui-combobox
                 label="Town or city"
                 [options]="cityOptions()"
                 [ngModel]="value('cityId')"
-                (ngModelChange)="set('cityId', $event)" />
+                (ngModelChange)="onCityChange($event)" />
+            }
+
+            <!--
+              SR-1 / P1. The optional detail of the chosen town. Shown only when
+              that town has tehsil rows behind it — which today means Haryana,
+              and only once the tehsil-by-city master is being served (see the
+              TODO on loadTehsilsForCity).
+
+              🔴 WHEN IT IS ABSENT, NOTHING IS ORPHANED. It is one child of the
+              .form-grid, so the grid simply closes up — no empty cell, no
+              separator and no rule of its own. Nothing else on this step
+              mentions a tehsil: the helper below talks about the village box,
+              and the note at the bottom of the step names the district and town
+              lists only. A state with no tehsils reads as a form that never had
+              the question.
+
+              ⚠️ "Tehsil / Sub-tehsil" IN ONE LABEL, BECAUSE THERE IS ONE LIST.
+              m_mdm_tehsil holds both and flags which is which (IsSubTehsil);
+              there is no separate sub-tehsil master and there will not be one,
+              for the reason 039_m_mdm_tehsil.sql gives: a person typing an
+              address knows their place's name, not its revenue classification,
+              and leaving sub-tehsils out would mean a school in Uklana cannot
+              find Uklana. Anything finer than this list is the village box.
+            -->
+            @if (hasTehsils()) {
+              <ui-combobox
+                label="Tehsil / Sub-tehsil"
+                helper="Only if you know it. Smaller places go in the next box."
+                [options]="tehsilOptions()"
+                [ngModel]="value('tehsilId')"
+                (ngModelChange)="set('tehsilId', $event)" />
             }
 
             <!--
@@ -304,8 +366,17 @@
                      placeholder="e.g. Dhani Bhagwan Das"
                      [ngModel]="value('areaOrVillage')"
                      (ngModelChange)="set('areaOrVillage', $event)" />
+              <!--
+                ⚠️ THE HELPER NAMES NO OTHER CONTROL ON PURPOSE. It used to say
+                "if your village is not in the list above", which pointed at
+                whichever dropdown happened to be drawn — and on a state with no
+                district data, or a town with no tehsil, it pointed at nothing.
+                What is true in every one of those cases is that we do not keep
+                a list of these places at all.
+              -->
               <p class="field__helper">
-                If your village or colony is not in the list above, type it here.
+                We have no list of villages and colonies, so type yours however
+                people say it.
               </p>
             </div>
 
@@ -565,6 +636,46 @@
                 </dd>
               </div>
               <div class="facts__item"><dt>State</dt><dd>{{ lookupName(states(), value('stateId')) }}</dd></div>
+
+              <!--
+                P1: THE REST OF THE ADDRESS, IN THE ORDER THE STEP ASKS FOR IT.
+
+                State was the only geography row here, so a school that had
+                carefully picked a district, a town and a tehsil was shown none
+                of them on the screen whose whole job is "everything you have
+                entered, before it goes" — and the tehsil P1 added would have
+                been invisible at the one moment somebody is checking.
+
+                ⚠️ EACH ROW IS GUARDED BY THE SAME PREDICATE AS ITS CONTROL, not
+                by whether the value is set. `lookupName` falls back to "#80012"
+                for an id it cannot find in the list it was handed, and a review
+                screen showing a raw id is worse than a question left out: the
+                lists live in signals that outlive the step, so the guard is also
+                what guarantees the name is there to print.
+              -->
+              @if (hasDistricts()) {
+                <div class="facts__item">
+                  <dt>District</dt><dd>{{ lookupName(districts(), value('districtId')) }}</dd>
+                </div>
+              }
+
+              @if (hasCities()) {
+                <div class="facts__item">
+                  <dt>Town or city</dt><dd>{{ lookupName(cities(), value('cityId')) }}</dd>
+                </div>
+              }
+
+              @if (hasTehsils()) {
+                <div class="facts__item">
+                  <dt>Tehsil / Sub-tehsil</dt><dd>{{ lookupName(tehsils(), value('tehsilId')) }}</dd>
+                </div>
+              }
+
+              @if (value('areaOrVillage')) {
+                <div class="facts__item">
+                  <dt>Village or area</dt><dd>{{ value('areaOrVillage') }}</dd>
+                </div>
+              }
             </dl>
           </section>
 

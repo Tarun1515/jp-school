@@ -77,33 +77,36 @@
         </div>
 
         <div class="form-grid">
-          <div class="field">
-            <label class="field__label" for="schoolTypeId">
-              School type <span class="pill pill--public">public</span>
-            </label>
-            <select class="form-control" id="schoolTypeId"
-                    [ngModel]="value('schoolTypeId')"
-                    (ngModelChange)="set('schoolTypeId', $event, 'basics')">
-              <option [ngValue]="null">Choose…</option>
-              @for (item of schoolTypes(); track item.id) {
-                <option [ngValue]="item.id">{{ item.name }}</option>
-              }
-            </select>
-          </div>
+          <!--
+            P1 (G27): THE LAST TWO PLAIN SELECTS ON THIS PAGE, CONVERTED.
 
-          <div class="field">
-            <label class="field__label" for="boardId">
-              Board <span class="pill pill--public">public</span>
-            </label>
-            <select class="form-control" id="boardId"
-                    [ngModel]="value('boardId')"
-                    (ngModelChange)="set('boardId', $event, 'basics')">
-              <option [ngValue]="null">Choose…</option>
-              @for (item of boards(); track item.id) {
-                <option [ngValue]="item.id">{{ item.name }}</option>
-              }
-            </select>
-          </div>
+            Six school types and seven boards, so this adds no search box —
+            <ui-combobox> only grows one at `searchFrom` (8). It is done for
+            G27's reason rather than for searching: one select in the product,
+            so the next fix to its keyboard handling reaches here too.
+
+            ⚠️ THE "public" PILL BECAME WORDS. The pill lives inside a
+            hand-written <label>, and the combobox renders its own label from a
+            string input — so the fact is carried in the helper instead of being
+            dropped. "Teachers see this" is the same thing the pill means, said
+            where the pill cannot go, and it matches the "Never shown to
+            teachers" note on PAN below.
+          -->
+          <ui-combobox
+            label="School type"
+            helper="Teachers see this."
+            placeholderOption="Choose…"
+            [options]="schoolTypeOptions()"
+            [ngModel]="value('schoolTypeId')"
+            (ngModelChange)="set('schoolTypeId', $event, 'basics')" />
+
+          <ui-combobox
+            label="Board"
+            helper="Teachers see this."
+            placeholderOption="Choose…"
+            [options]="boardOptions()"
+            [ngModel]="value('boardId')"
+            (ngModelChange)="set('boardId', $event, 'basics')" />
 
           <div class="field">
             <label class="field__label" for="establishedYear">
@@ -479,9 +482,31 @@
               (ngModelChange)="onDistrictChange($event)" />
           }
 
+          <!--
+            🔴 P1: STATE -> DISTRICT -> TOWN, AND IT STOPS AT THE TOWN HERE.
+
+            The registration form asks two more questions after this one —
+            Tehsil/Sub-tehsil and a free-text Village/area — and this page
+            cannot, because `UpdateSchoolProfileBody` and USP_UpdateSchoolProfile
+            carry no TehsilId or AreaOrVillage. The COLUMNS exist on
+            t_app_schools (036_alter_address_columns.sql) and approval fills them
+            in from the registration, so the facts are there; the profile
+            contract simply does not read or write them.
+
+            ⚠️ SO DO NOT ADD THE TWO CONTROLS HERE AS A TEMPLATE CHANGE. A box
+            whose value is dropped on save is worse than no box: the school would
+            correct its tehsil, press Save, be told "Saved", and nothing would
+            have changed. Exposing them is a contract change in jp-backend and in
+            school.service.ts, both outside this file.
+
+            ⚠️ "Town or city", the same words the registration form uses. Towns
+            are most of what this list holds — one headquarters town per tehsil
+            — and a school in one of them should not have to decide whether it
+            counts as a city.
+          -->
           @if (hasCities()) {
             <ui-combobox
-              label="City"
+              label="Town or city"
               [options]="cityOptions()"
               [ngModel]="value('cityId')"
               (ngModelChange)="set('cityId', $event, 'contact')" />

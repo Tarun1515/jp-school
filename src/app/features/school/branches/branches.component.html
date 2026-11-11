@@ -209,9 +209,28 @@
           formControlName="districtId" />
       }
 
+      <!--
+        🔴 P1: STATE -> DISTRICT -> TOWN, AND THE CAMPUS FORM STOPS AT THE TOWN.
+
+        The registration form asks Tehsil/Sub-tehsil and a free-text
+        Village/area after this; a campus cannot, because `SaveBranchBody` and
+        USP_SaveBranch carry no TehsilId or AreaOrVillage. The COLUMNS are on
+        t_app_school_branches already (036_alter_address_columns.sql) — only the
+        contract is missing.
+
+        ⚠️ WHICH IS WHY THERE IS NO TEHSIL BOX HERE YET. Adding one in this
+        template would collect a value `save()` cannot send: the school would
+        set its campus tehsil, be told "Campus updated", and nothing would have
+        changed. That is worse than the question not being asked. Exposing the
+        two fields is a change in jp-backend and school.service.ts.
+
+        ⚠️ "Town or city", the words the other two address forms use. The list
+        is mostly towns — one headquarters town per tehsil — and a campus in one
+        should not have to decide whether it counts as a city.
+      -->
       @if (hasCities()) {
         <ui-combobox
-          label="City"
+          label="Town or city"
           [options]="cityOptions()"
           formControlName="cityId" />
       }

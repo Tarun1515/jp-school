@@ -144,35 +144,47 @@
         <!--
           🔴 EMPLOYMENT TYPE — every option comes from the master (G26, 2.68).
 
-          ⚠️ No "Choose one" placeholder, unlike subject and designation. Those
-          two are genuinely unanswered until a school answers them; a vacancy is
-          always SOME kind of employment, so an empty choice here would be a
-          state no job is ever in. The list's first active row is selected for a
-          new job — see pickDefaultEmploymentType, which does NOT assume id 1.
+          🔴 P3 (G27): THE LAST PLAIN <select> ON THIS FORM, CONVERTED. It sat
+          beside four comboboxes reading from the same endpoint, which is the
+          "half a list" state this sweep exists to end — and five rows is a fact
+          about today's seed, not about the control (2.47 lets the client add
+          one as data). Below `searchFrom` (8) the combobox grows no search box,
+          so what a school sees is the same five names it saw before.
+
+          ⚠️ [required] AND SO NO CLEAR (×) BUTTON — which is how the missing
+          "Choose one" placeholder survives the swap. Subject and designation are
+          genuinely unanswered until a school answers them; a vacancy is always
+          SOME kind of employment, so an empty choice here would be a state no
+          job is ever in. The list's first active row is selected for a new job —
+          see pickDefaultEmploymentType, which does NOT assume id 1.
+
+          ⚠️ THE `.field field--half` WRAPPER STAYS, unlike the hand-written
+          label inside it. `field--half` is this screen's half-width rule, and
+          the outer `.field` is what separates this control from the two
+          multi-selects below — the combobox's own inner `.field` is the only
+          child of its host, so `.field:last-child { margin-bottom: 0 }` zeroes
+          it and the spacing has to come from here.
+
+          ⚠️ THE LOCK IS SAID IN THE LABEL TEXT, because <ui-combobox> renders
+          its own label and the <span class="field__lock"> that lived inside the
+          hand-written one has nowhere left to go — the same trade the subject,
+          designation and qualification conversions made.
 
           It locks with the rest: it is part of what a teacher applied to.
         -->
         <div class="field field--half">
-          <label class="field__label" for="employmentTypeId">
-            Employment type @if (locked()) { <span class="field__lock">locked</span> }
-          </label>
-          <select
-            id="employmentTypeId"
+          <ui-combobox
             name="employmentTypeId"
-            class="form-control"
-            [(ngModel)]="form.employmentTypeId"
+            [label]="locked() ? 'Employment type (locked)' : 'Employment type'"
+            [options]="employmentTypeOptions()"
+            [required]="true"
             [disabled]="locked()"
-          >
-            @for (e of employmentTypes(); track e.id) {
-              <option [value]="e.id">{{ e.name }}</option>
-            }
-          </select>
-          @if (!locked()) {
-            <p class="field__help">
-              Part-time, Contract, Visiting and Temporary are all real postings —
-              teachers filter on this.
-            </p>
-          }
+            [helper]="locked()
+              ? undefined
+              : 'Part-time, Contract, Visiting and Temporary are all real postings — teachers filter on this.'"
+            [ngModel]="form.employmentTypeId"
+            (ngModelChange)="onEmploymentTypeChange($event)"
+          />
         </div>
 
         <!--

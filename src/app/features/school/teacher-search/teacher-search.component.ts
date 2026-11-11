@@ -1,10 +1,16 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { AuthService, MasterService, ToastService } from 'jp-shared/core';
+import { AuthService, MasterService, ToastService, UpgradeService } from 'jp-shared/core';
 import { Lookup, MASTER_KEYS } from 'jp-shared/models';
-import { UiBadgeComponent, UiEmptyStateComponent, UiModalComponent } from 'jp-shared/ui';
+import {
+  UiBadgeComponent,
+  UiComboboxComponent,
+  UiEmptyStateComponent,
+  UiModalComponent,
+  lookupsToOptions,
+} from 'jp-shared/ui';
 
-import { SchoolService } from '../../../core/school.service';
+import { SchoolBranch, SchoolService } from '../../../core/school.service';
 import {
   TeacherSearchResult,
   TeacherSearchService,
@@ -48,11 +54,38 @@ import {
  * and the cap was the only thing holding it up. This searches the whole teacher
  * base. The page and the total both come from the server, and the filters are
  * applied there too.
+ *
+ * ----------------------------------------------------------------------------
+ * 🔴 P2 — THE SCREEN OPENS POINTED AT THE TEACHERS NEAREST THE SCHOOL
+ * ----------------------------------------------------------------------------
+ * The teacher's job browse has done this since SR-3: it opens already filtered
+ * to the work that teacher does, and says so in one line with one click out.
+ * This is the same idea from the other side — a school lands on the teachers in
+ * its own state rather than on every teacher in India.
+ *
+ * ⚠️ PRE-FILLED, NEVER HARD-FILTERED, and the difference is the whole design.
+ * The state control is an ordinary filter holding an ordinary value: one click
+ * on the combobox's × shows everybody. What makes the default honest is that
+ * the screen SAYS it applied one — a short list nobody asked for reads as "the
+ * teacher base is nearly empty", and nothing on the screen would contradict it.
+ * `nearMe` exists to carry that sentence, which is why it is a signal rather
+ * than a private boolean.
+ *
+ * ⚠️ AN UNKNOWN LOCATION IS NOT AN ERROR. No head office, no state recorded on
+ * it, or a failed branch read all mean the same thing here: no default, no
+ * notice, the plain unfiltered screen. A school that has not finished its
+ * profile must still be able to search.
  */
 @Component({
   selector: 'app-teacher-search',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, UiBadgeComponent, UiEmptyStateComponent, UiModalComponent],
+  imports: [
+    FormsModule,
+    UiBadgeComponent,
+    UiComboboxComponent,
+    UiEmptyStateComponent,
+    UiModalComponent,
+  ],
   templateUrl: './teacher-search.component.html',
   styleUrl: './teacher-search.component.scss',
 })
@@ -62,6 +95,17 @@ export class TeacherSearchComponent {
   private readonly schools = inject(SchoolService);
   private readonly auth = inject(AuthService);
   private readonly toast = inject(ToastService);
+
+  /**
+   * 🔴 THE ROAD OUT OF A PLAN REFUSAL, and it goes through UpgradeService
+   * rather than a routerLink, exactly as the job list's quota wall does.
+   *
+   * The service captures the current URL before navigating, so /billing can
+   * offer "back to what you were doing" — a plain link to /billing loses that
+   * and leaves somebody who upgrades on the pricing page with no way back to
+   * the search they were refused.
+   */
+  private readonly upgrade = inject(UpgradeService);
 
   protected readonly rows = signal<TeacherSearchResult[]>([]);
   protected readonly total = signal(0);
@@ -87,6 +131,56 @@ export class TeacherSearchComponent {
   protected readonly classLevels = signal<Lookup[]>([]);
   protected readonly states = signal<Lookup[]>([]);
   protected readonly experienceRanges = signal<Lookup[]>([]);
+
+  /*
+    G27: THE SAME <ui-combobox> EVERY OTHER MASTER DROPDOWN USES.
+
+    34 subjects, 16 qualifications, 36 states — a native <select> over those is
+    a list you can only use if you already know where the name falls
+    alphabetically, which is the problem SR-3 added the component for. There is
+    ONE such control in jp-shared and this screen uses it; a second
+    implementation here is exactly the drift G27 records.
+
+    ⚠️ EXPERIENCE RANGE IS DELIBERATELY STILL A PLAIN <select> — five contiguous
+    bands, and a search box over five options is a worse control than the five
+    options. That threshold is what the component's own `searchFrom` encodes.
+
+    ⚠️ COMPUTED, NOT MAPPED INLINE IN THE TEMPLATE. `lookupsToOptions(subjects())`
+    written in the binding rebuilds the array on every change-detection pass and
+    hands <ui-combobox> a fresh `options` identity each time, which defeats the
+    OnPush it was given. A computed changes identity only when the master behind
+    it actually changes — here, once, when the master arrives.
+  */
+  protected readonly subjectOptions = computed(() => lookupsToOptions(this.subjects()));
+  protected readonly designationOptions = computed(() => lookupsToOptions(this.designations()));
+  protected readonly qualificationOptions = computed(() => lookupsToOptions(this.qualifications()));
+  protected readonly classLevelOptions = computed(() => lookupsToOptions(this.classLevels()));
+  protected readonly stateOptions = computed(() => lookupsToOptions(this.states()));
+
+  /* ---- P2: the school's own location, as a default -------------------- */
+
+  /**
+   * Whether the state showing in the filter was OURS to set, not the user's.
+   *
+   * 🔴 IT MUST BE SAID ON SCREEN, which is the only reason this is a signal.
+   * A list narrowed by a filter the school never chose is indistinguishable
+   * from a product with hardly any teachers in it, and they would act on that
+   * — so the notice and the one-click way out are not decoration, they are
+   * what makes a helpful default something other than a trap.
+   *
+   * Cleared the moment the school touches the state control, clears the
+   * filters, or widens: from then on the list is theirs, and taking credit for
+   * their choice would be its own small lie.
+   */
+  protected readonly nearMe = signal(false);
+
+  /**
+   * ⚠️ NOT SHOWN OVER A REFUSAL OR A BREAKAGE. "Showing teachers near you" is
+   * a claim about a list, and when the plan refused the search or the request
+   * fell over there is no list — the same rule `resultSummary` follows.
+   */
+  protected readonly showNearMeNote = computed(() =>
+    this.nearMe() && !this.refused() && !this.failed());
 
   /* ---- the invite modal ------------------------------------------------- */
   protected readonly inviting = signal<TeacherSearchResult | null>(null);
@@ -163,6 +257,37 @@ export class TeacherSearchComponent {
   protected readonly refused = signal(false);
   protected readonly refusedMessage = signal<string | null>(null);
 
+  /**
+   * 🔴 THE REFUSAL THAT HAS A ROAD OUT, AND IT IS SAID ONCE.
+   *
+   * PLAN_LACKS_FEATURE used to set `refused` AND `quotaSpent` from the same
+   * sentence, so the screen printed the server's words twice: a banner above
+   * the filters and a second box below them. Two copies of one fact read as
+   * two problems, and the school counted them.
+   *
+   * So the sentence belongs to `refused` and there is exactly one banner for
+   * it. This flag carries only what the other refusals do not have — somewhere
+   * to go — and decides whether that one banner also offers the plans. A
+   * missing PERMISSION is not fixed by paying: offering an upgrade for it would
+   * be selling somebody something that does not solve their problem.
+   *
+   * ⚠️ The filters stay on screen either way. Saying why something is
+   * unavailable and showing the road to it is the standing decision; hiding
+   * the feature would make it look like it does not exist.
+   */
+  protected readonly planGated = signal(false);
+
+  /**
+   * Why Search is disabled, or null while it works.
+   *
+   * 🔴 2.62 AGAIN, ON THE SEARCH BUTTON. The control stays and carries its own
+   * reason (`title` + `aria-describedby` on to the banner), so somebody who
+   * reaches for it learns why from the thing they pressed rather than from a
+   * request that comes back refused a second time.
+   */
+  protected readonly searchBlockedBecause = computed(() =>
+    (this.refused() ? this.refusedMessage() : null));
+
   constructor() {
     /*
       ⚠️ Nothing is loaded for somebody who may not search. Fetching masters
@@ -185,13 +310,63 @@ export class TeacherSearchComponent {
       as well as data (2.39) — so it is a real choice, defaulted to the head
       office because that is the answer for the single-campus school that most
       of them are (2.50).
-    */
-    this.schools.listBranches(false).subscribe((list) => {
-      const head = list.find((b) => b.isHeadOffice) ?? list[0];
-      if (head) this.branchId.set(head.branchId);
-    });
 
-    this.run();
+      🔴 P2: THE SAME ONE REQUEST ALSO ANSWERS "WHERE IS THIS SCHOOL". The head
+      office branch carries the address provisioning copied from the
+      registration (001_provisioning), so the state the school typed when it
+      signed up is already on its way here for the invite's campus. Asking
+      /school/profile for it as well would be a second request for a fact this
+      one already contains.
+
+      🔴 AND THE FIRST SEARCH WAITS FOR IT. Firing the search in parallel would
+      mean an unfiltered result set landing first and the near-you one replacing
+      it a moment later — a list that moves under the reader, and two requests
+      where one does. So `run()` is called from BOTH arms: a branch read that
+      fails is not an error on this screen, it just means no default.
+    */
+    this.schools.listBranches(false).subscribe({
+      next: (list) => {
+        const head = list.find((b) => b.isHeadOffice) ?? list[0];
+        if (head) this.branchId.set(head.branchId);
+
+        this.startNearSchool(head ?? null);
+        this.run();
+      },
+      error: () => this.run(),
+    });
+  }
+
+  /**
+   * P2. Open the screen on the teachers nearest this school.
+   *
+   * ----------------------------------------------------------------------------
+   * 🔴 WHY THE DEFAULT IS A STATE AND NOT THE HEAD OFFICE'S TOWN
+   * ----------------------------------------------------------------------------
+   * The head office knows its district and its town as well as its state, and
+   * neither is used. The district CANNOT be: there is no district anywhere in
+   * the search chain — `t_app_teachers` stores CurrentCityId and CurrentStateId
+   * only, `USP_SearchTeachers` takes @CityId and @StateId, and TeacherSearchQuery
+   * carries the same two. A district default would be a backend change first and
+   * a screen change second; sending one from here would filter nothing.
+   *
+   * The town is available and is still not used, because a default must be
+   * wide enough to be worth opening. Narrowing a school in Hisar to teachers
+   * who recorded Hisar as their own town hides every teacher one town over who
+   * would happily take the job — which is the pre-filter failure this whole
+   * design is built to avoid, just at a smaller radius. The state is the unit
+   * the teacher side pre-fills on too (SR-3), and the two screens agreeing on
+   * what "near" means is worth more than a tighter radius on one of them.
+   *
+   * ⚠️ NO STATE ON THE BRANCH MEANS NO DEFAULT AND NO NOTICE. Not an empty
+   * filter that looks set, not a toast: the ordinary screen, showing everybody.
+   */
+  private startNearSchool(head: SchoolBranch | null): void {
+    const stateId = head?.stateId ?? null;
+
+    if (stateId === null) return;
+
+    this.stateId.set(stateId);
+    this.nearMe.set(true);
   }
 
   protected run(): void {
@@ -200,6 +375,7 @@ export class TeacherSearchComponent {
     this.loading.set(true);
     this.failed.set(false);
     this.refused.set(false);
+    this.planGated.set(false);
 
     this.search
       .search({
@@ -248,10 +424,20 @@ export class TeacherSearchComponent {
             summary line then said "no teacher matches" over the top of it.
           */
           if (code === 'PLAN_LACKS_FEATURE') {
+            /*
+              ⚠️ ONE FLAG FOR THE SENTENCE, ONE FOR THE ROAD OUT — and
+              deliberately NOT `quotaSpent` as well. Setting both is what
+              printed this refusal twice: `quotaSpent` is the invite meter's own
+              state, with its own banner, and borrowing it to disable the invite
+              buttons meant the same words appeared above the filters and again
+              below them. The invite buttons do not need it here anyway — a
+              refused search has no rows to invite from — and
+              `inviteBlockedBecause` reads `planGated` directly for the case
+              where rows are already on screen.
+            */
             this.refused.set(true);
             this.refusedMessage.set(message ?? 'Your plan does not include teacher search.');
-            this.quotaSpent.set(true);
-            this.quotaMessage.set(message ?? 'Your plan does not include teacher search.');
+            this.planGated.set(true);
 
             return;
           }
@@ -284,7 +470,53 @@ export class TeacherSearchComponent {
     this.stateId.set(null);
     this.experienceRangeId.set(null);
     this.verifiedOnly.set(false);
+
+    /*
+      ⚠️ The notice goes with the filter it describes. Clearing takes the state
+      out, so the list is no longer "near you" and saying it would be false.
+    */
+    this.nearMe.set(false);
     this.applyFilters();
+  }
+
+  /**
+   * The state filter changed by hand.
+   *
+   * ⚠️ NO SEARCH IS FIRED — every filter on this screen is applied by the
+   * Search button, and one control that re-queried on change would be a
+   * surprise in a toolbar where nothing else does.
+   *
+   * ⚠️ BUT THE NOTICE GOES IMMEDIATELY. The moment a state is chosen — or the
+   * combobox's × empties it — that box holds the school's own answer rather
+   * than ours, and a line taking credit for a filter somebody else just set is
+   * worse than no line at all.
+   */
+  protected onStateChange(stateId: number | null): void {
+    this.stateId.set(stateId);
+    this.nearMe.set(false);
+  }
+
+  /**
+   * "Show teachers everywhere" — the one click out of the default.
+   *
+   * 🔴 THIS ONE DOES SEARCH IMMEDIATELY, and that is not inconsistent: it is
+   * not a filter control, it is a named action whose label says exactly what
+   * will happen. SR-3 learned the same thing on the teacher side — "Clear
+   * filters" asks somebody to work out that filters they never set exist,
+   * where "Show all jobs" just says what the button does.
+   *
+   * ⚠️ It drops ONLY the location. The school may well have set a subject
+   * meanwhile, and throwing that away would make the way out cost something.
+   */
+  protected showEverywhere(): void {
+    this.stateId.set(null);
+    this.nearMe.set(false);
+    this.applyFilters();
+  }
+
+  /** To the plans, remembering this screen. See `upgrade` above for why. */
+  protected seePlans(): void {
+    this.upgrade.showPlans();
   }
 
   protected page(delta: number): void {
@@ -325,6 +557,16 @@ export class TeacherSearchComponent {
     if (row.hasApplied) return 'They have already applied to you — open their application instead.';
     if (row.hasOpenInvite) return 'You have an invitation waiting with this teacher.';
     if (this.quotaSpent()) return this.quotaMessage();
+
+    /*
+      ⚠️ The plan refusal reaches the invite buttons through its OWN flag now,
+      not by borrowing `quotaSpent` — which is what duplicated the banner. Rows
+      and a gated plan rarely coexist (a refused search clears the rows), but
+      they can: a search that succeeded before the plan changed leaves rows on
+      screen, and an Invite button that looks live there would be a click that
+      goes nowhere.
+    */
+    if (this.planGated()) return this.refusedMessage();
 
     return null;
   }

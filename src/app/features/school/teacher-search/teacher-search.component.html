@@ -52,40 +52,109 @@
   }
 
   <!--
-    🔴 "NOT YET": the plan's invitations are spent, or the plan does not include
-    search at all. The server's own sentence, because it names the period and
-    what resets it.
+    🔴 "NOT YET": the plan's invitations are spent. The server's own sentence,
+    because it names the period and what resets it.
+
+    ⚠️ NO LONGER THE PLAN-GATED SENTENCE TOO. A search refused for
+    PLAN_LACKS_FEATURE used to set this flag as well as `refused`, so the same
+    words appeared here AND in a second box below the filters. The refusal has
+    its own banner now, immediately below; this one is the invite meter's.
   -->
   @if (quotaSpent() && quotaMessage()) {
     <p class="banner banner--warning" role="status">{{ quotaMessage() }}</p>
   }
 
-  <!-- Every filter from a master table (2.7). Nothing hardcoded. -->
+  <!--
+    🔴 THE SEARCH REFUSAL — ONE BANNER, ABOVE THE CONTROLS IT IS ABOUT.
+
+    There were two: this sentence printed above the filters (through
+    `quotaSpent`) and again in a box below them (through `refused`). A school
+    whose plan does not include search read the identical line twice and
+    reasonably counted two problems. One banner, with the `id` the disabled
+    Search button points its `aria-describedby` at — the reason is attached to
+    the control without being written on screen a second time.
+
+    🔴 THE FILTERS STAY VISIBLE UNDERNEATH. Say why something is unavailable and
+    show the road to it; never hide the feature, because a school that cannot
+    see what teacher search does has nothing to upgrade for and no reason to
+    believe the product has it at all.
+
+    ⚠️ THE PLANS BUTTON IS FOR THE PLAN CASE ONLY. A missing permission is not
+    fixed by paying — the person who can fix that is their own school's owner,
+    and offering an upgrade would be selling somebody something that does not
+    solve their problem.
+  -->
+  @if (refused() && refusedMessage()) {
+    <div class="banner banner--warning search__refusal" id="search-refused" role="status">
+      <strong>{{ refusedMessage() }}</strong>
+
+      @if (planGated()) {
+        <p>
+          Teacher search comes with the paid plans. The filters below are what
+          it does — upgrading is what turns them on.
+        </p>
+        <p>
+          <button type="button" class="btn btn--primary btn--sm" (click)="seePlans()">
+            See plans and upgrade
+          </button>
+        </p>
+      }
+    </div>
+  }
+
+  <!--
+    Every filter from a master table (2.7). Nothing hardcoded.
+
+    🔴 G27 (P2): SEARCHABLE COMBOBOXES, THE SHARED ONE, NOT A SECOND COPY.
+
+    34 subjects, 16 qualifications and all 36 states — a native <select> over
+    those is a list you can only use if you already know where the name falls
+    alphabetically, which is what <ui-combobox> was added for in SR-3. The same
+    component the registration form, the campus form and the teacher's job
+    browse use; a filter box written specially for this screen is precisely the
+    drift G27 records.
+
+    ⚠️ `ariaLabel`, NOT the visually-hidden <label> these controls used to
+    carry. The combobox owns its own id, so an outside <label for> cannot reach
+    it — dropping the label and passing nothing would leave a screen reader
+    announcing "combobox" and nothing else.
+
+    ⚠️ `name` IS LOAD-BEARING HERE, unlike on the teacher's browse toolbar.
+    These controls sit inside a real <form> (the Search button submits it), and
+    an ngModel inside a form tag without a name throws at runtime rather than
+    failing to compile.
+
+    ⚠️ EXPERIENCE IS STILL A PLAIN <select> — five bands, and a search box over
+    five options is a worse control than the five options. The component's own
+    `searchFrom` threshold encodes the same judgement.
+  -->
   <form class="page__toolbar" (ngSubmit)="applyFilters()">
     <div class="page__toolbar__control">
-      <label class="visually-hidden" for="f-subject">Subject</label>
-      <select class="form-control" id="f-subject" [(ngModel)]="subjectId" name="subjectId">
-        <option [ngValue]="null">Any subject</option>
-        @for (s of subjects(); track s.id) {
-          <option [ngValue]="s.id">{{ s.name }}</option>
-        }
-      </select>
+      <ui-combobox
+        ariaLabel="Subject"
+        placeholderOption="All subjects"
+        name="subjectId"
+        [options]="subjectOptions()"
+        [ngModel]="subjectId()"
+        (ngModelChange)="subjectId.set($event)"
+      />
     </div>
 
     <div class="page__toolbar__control">
-      <label class="visually-hidden" for="f-designation">Designation</label>
-      <select class="form-control" id="f-designation" [(ngModel)]="designationId" name="designationId">
-        <option [ngValue]="null">Any designation</option>
-        @for (d of designations(); track d.id) {
-          <option [ngValue]="d.id">{{ d.name }}</option>
-        }
-      </select>
+      <ui-combobox
+        ariaLabel="Designation"
+        placeholderOption="All designations"
+        name="designationId"
+        [options]="designationOptions()"
+        [ngModel]="designationId()"
+        (ngModelChange)="designationId.set($event)"
+      />
     </div>
 
     <div class="page__toolbar__control">
       <label class="visually-hidden" for="f-experience">Experience</label>
       <select class="form-control" id="f-experience" [(ngModel)]="experienceRangeId" name="experienceRangeId">
-        <option [ngValue]="null">Any experience</option>
+        <option [ngValue]="null">All experience levels</option>
         @for (e of experienceRanges(); track e.id) {
           <option [ngValue]="e.id">{{ e.name }}</option>
         }
@@ -93,33 +162,48 @@
     </div>
 
     <div class="page__toolbar__control">
-      <label class="visually-hidden" for="f-qualification">Qualification</label>
-      <select class="form-control" id="f-qualification" [(ngModel)]="qualificationId" name="qualificationId">
-        <option [ngValue]="null">Any qualification</option>
-        @for (q of qualifications(); track q.id) {
-          <option [ngValue]="q.id">{{ q.name }}</option>
-        }
-      </select>
+      <ui-combobox
+        ariaLabel="Qualification"
+        placeholderOption="All qualifications"
+        name="qualificationId"
+        [options]="qualificationOptions()"
+        [ngModel]="qualificationId()"
+        (ngModelChange)="qualificationId.set($event)"
+      />
     </div>
 
     <div class="page__toolbar__control">
-      <label class="visually-hidden" for="f-class-level">Class level</label>
-      <select class="form-control" id="f-class-level" [(ngModel)]="classLevelId" name="classLevelId">
-        <option [ngValue]="null">Any class level</option>
-        @for (c of classLevels(); track c.id) {
-          <option [ngValue]="c.id">{{ c.name }}</option>
-        }
-      </select>
+      <ui-combobox
+        ariaLabel="Class level"
+        placeholderOption="All class levels"
+        name="classLevelId"
+        [options]="classLevelOptions()"
+        [ngModel]="classLevelId()"
+        (ngModelChange)="classLevelId.set($event)"
+      />
     </div>
 
+    <!--
+      🔴 THE ONE FILTER THAT ARRIVES ALREADY SET (P2), from the school's own
+      head office — so a school opens this screen looking at the teachers
+      nearest it instead of at every teacher in India.
+
+      ⚠️ IT IS AN ORDINARY FILTER HOLDING AN ORDINARY VALUE. The combobox's own
+      × clears it in one click and shows everybody; there is no hidden
+      narrowing anywhere, and the line below the toolbar says a default was
+      applied. `placeholderOption` stays "Anywhere" rather than becoming "All
+      states": it is the word for an empty location filter, and it is the
+      example the component's own documentation uses.
+    -->
     <div class="page__toolbar__control">
-      <label class="visually-hidden" for="f-state">State</label>
-      <select class="form-control" id="f-state" [(ngModel)]="stateId" name="stateId">
-        <option [ngValue]="null">Anywhere</option>
-        @for (st of states(); track st.id) {
-          <option [ngValue]="st.id">{{ st.name }}</option>
-        }
-      </select>
+      <ui-combobox
+        ariaLabel="State"
+        placeholderOption="Anywhere"
+        name="stateId"
+        [options]="stateOptions()"
+        [ngModel]="stateId()"
+        (ngModelChange)="onStateChange($event)"
+      />
     </div>
 
     <!--
@@ -133,16 +217,54 @@
       Verified only
     </label>
 
-    <button type="submit" class="btn btn--primary btn--sm">Search</button>
+    <!--
+      🔴 2.62 ON THE SEARCH BUTTON: IT STAYS, DISABLED, CARRYING ITS REASON.
+
+      The control a refused user reaches for is the one that has to explain
+      itself, so the server's own sentence rides along as the `title` and
+      `aria-describedby` points at the banner that already says it out loud.
+      That is "attached to the control" without writing the words on screen
+      twice — which is the duplication this change removed.
+    -->
+    <button
+      type="submit"
+      class="btn btn--primary btn--sm"
+      [disabled]="searchBlockedBecause() !== null"
+      [attr.title]="searchBlockedBecause()"
+      [attr.aria-describedby]="searchBlockedBecause() ? 'search-refused' : null"
+    >Search</button>
     <button type="button" class="btn btn--sm page__toolbar__clear" (click)="clearFilters()">Clear</button>
   </form>
 
   <!--
-    🔴 The server refused the search itself — plan or permission. An answer, not
-    a breakage, and said in the server's own words.
+    🔴 P2: THE SCREEN SAYS WHOSE FILTER THAT IS.
+
+    The state box above arrives already set, from the school's own head office.
+    Without this line that is a lie by omission: a list the school did not
+    narrow reads as "there are hardly any teachers on here", and nothing on the
+    screen would contradict it. The sentence plus one button is what makes a
+    helpful default honest instead of a trap.
+
+    ⚠️ THE WAY OUT IS ONE CLICK AND IT IS NAMED. Not "clear filters", which
+    asks the school to work out that filters it never set exist — "Show
+    teachers everywhere", which says what the button will do.
+
+    ⚠️ TWO SENTENCES, WRITTEN OUT. The state master is a separate request and
+    may not have arrived yet; naming the state is better when we can, and a
+    half-rendered "near you — in ." is worse than the shorter sentence.
   -->
-  @if (refused() && refusedMessage()) {
-    <p class="banner banner--warning" role="status">{{ refusedMessage() }}</p>
+  @if (showNearMeNote()) {
+    <p class="note search__scope" role="status">
+      @if (lookupName(states(), stateId()); as state) {
+        <span>Showing teachers near you — in {{ state }}, where your head office is.</span>
+      } @else {
+        <span>Showing teachers near you — in the state your head office is in.</span>
+      }
+
+      <button type="button" class="btn btn--ghost btn--sm" (click)="showEverywhere()">
+        Show teachers everywhere
+      </button>
+    </p>
   }
 
   <!--
@@ -165,12 +287,21 @@
       The search could not be run. Nothing has been changed — try again in a moment.
     </p>
   } @else if (refused()) {
-    <!-- The banner above already said it. Nothing else to draw. -->
+    <!--
+      The one banner above the filters already said it, and said it once. A
+      second box here is exactly what P2 removed.
+    -->
   } @else if (rows().length === 0) {
+    <!--
+      ⚠️ THE LOCATION IS NAMED AMONG THE THINGS TO WIDEN, because on a first
+      visit it is the only filter that is set — and a school told to clear a
+      subject it never chose would be reading advice about somebody else's
+      screen. The notice above carries the one-click version of the same offer.
+    -->
     <ui-empty-state
       icon="🔍"
       title="No teacher matches those filters"
-      message="Try widening the experience range or clearing the subject. Teachers who have not finished their profile are harder to find — they appear once they add a subject."
+      message="Try a wider experience range, a different subject, or a wider location. Teachers who have not finished their profile are harder to find — they appear once they add a subject."
       actionLabel="Clear filters"
       (action)="clearFilters()"
     />

@@ -14,6 +14,34 @@
   font-size: var(--jp-font-size-sm);
 }
 
+/*
+  P2: the "near you" notice — the sentence and the way out of it on one line.
+
+  ⚠️ `flex-wrap` IS THE WHOLE RULE. At 375 the sentence takes the full width and
+  the button drops underneath it; side by side it would squeeze "Show teachers
+  everywhere" into a two-line stub of a button, and the way out of a default
+  filter is not something to make small. Same shape as the teacher's job browse,
+  which carries the same notice from the other side.
+*/
+.search__scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: v.$space-3;
+}
+
+/*
+  The refusal banner. `.banner` is a block, so the paragraphs inside it only
+  need their margins taming — the sentence, the explanation and the button sit
+  in one column, exactly as the job list's quota wall does.
+*/
+.search__refusal {
+  p {
+    margin: v.$space-2 0 0;
+  }
+}
+
 .results {
   @include m.flex-column(v.$space-3);
 

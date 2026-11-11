@@ -125,6 +125,16 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
   protected readonly districtOptions = computed(() => lookupsToOptions(this.districts()));
   protected readonly cityOptions = computed(() => lookupsToOptions(this.cities()));
 
+  /*
+    P1 (G27). The two basics masters, now comboboxes like everything else.
+
+    ⚠️ COMPUTED FOR THE SAME REASON AS THE GEOGRAPHY THREE even though neither
+    ever cascades: the new-array-identity trap is a property of the binding, not
+    of the master behind it.
+  */
+  protected readonly boardOptions = computed(() => lookupsToOptions(this.boards()));
+  protected readonly schoolTypeOptions = computed(() => lookupsToOptions(this.schoolTypes()));
+
   // ---- facilities ---------------------------------------------------------
   protected readonly selectedFacilities = signal<ReadonlySet<number>>(new Set());
 
@@ -216,8 +226,33 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
     this.dirty.set(new Set());
     this.loadGallery(profile.photos);
 
+    /*
+      🔴 BOTH DEPENDENT LISTS, OR THE SAVED TOWN IS INVISIBLE.
+
+      Only the districts were fetched here, and the town control renders behind
+      `hasCities()` — so a school whose address HAS a town opened this page with
+      no town control at all. The id sat in the draft, unreadable and
+      unchangeable, until the user re-picked their district to trigger the
+      cascade; and `onDistrictChange` clears the town when they do, so the only
+      way to see what was already saved was to lose it.
+
+      The campus dialog hit exactly this and fixed it in `openEdit`
+      (branches.component.ts); the profile was missed. Same fix, same reason.
+
+      ⚠️ THE DISTRICT ID IS ALREADY IN HAND, so the two fetches do not have to
+      be chained — nothing here waits for the district list to arrive.
+
+      ⚠️ THROUGH loadDistricts / loadCities, NOT onStateChange /
+      onDistrictChange. Those two also CLEAR the level below them, which is
+      right when a person changes a parent and wrong when we are restoring what
+      they saved.
+    */
     if (profile.stateId) {
       this.loadDistricts(profile.stateId);
+    }
+
+    if (profile.districtId) {
+      this.loadCities(profile.districtId);
     }
   }
 
@@ -632,11 +667,21 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
     this.cities.set([]);
 
     if (districtId) {
-      this.masters.getByParent(MASTER_KEYS.city, districtId).subscribe({
-        next: (items) => this.cities.set(items),
-        error: () => this.cities.set([]),
-      });
+      this.loadCities(districtId);
     }
+  }
+
+  /**
+   * ⚠️ FETCHES, AND NOTHING ELSE — the same split `loadDistricts` has, and the
+   * reason is `apply()`: restoring a saved address must be able to fill a list
+   * without re-entering the cascade that would clear the value it is filling
+   * the list in order to show.
+   */
+  private loadCities(districtId: number): void {
+    this.masters.getByParent(MASTER_KEYS.city, districtId).subscribe({
+      next: (items) => this.cities.set(items),
+      error: () => this.cities.set([]),
+    });
   }
 
   // =========================================================================

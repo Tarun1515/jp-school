@@ -198,10 +198,18 @@ export class RegistrationComponent {
   // ---- masters ------------------------------------------------------------
   protected readonly boards = signal<Lookup[]>([]);
   protected readonly schoolTypes = signal<Lookup[]>([]);
+  /*
+    ⚠️ P1: DECLARED IN CASCADE ORDER, AND THE ORDER MOVED.
+
+    State -> district -> city -> tehsil. `cities` used to sit below `tehsils`
+    because the tehsil narrowed the town list; it is the other way round now
+    (see onCityChange), and a reader following the cascade down the file should
+    not have to jump back up a line to do it.
+  */
   protected readonly states = signal<Lookup[]>([]);
   protected readonly districts = signal<Lookup[]>([]);
-  protected readonly tehsils = signal<Lookup[]>([]);
   protected readonly cities = signal<Lookup[]>([]);
+  protected readonly tehsils = signal<Lookup[]>([]);
   protected readonly documentTypes = signal<DocumentType[]>([]);
 
   /**
@@ -217,17 +225,27 @@ export class RegistrationComponent {
    */
   protected readonly hasDistricts = computed(() => this.districts().length > 0);
 
-  /*
-    SR-1. Tehsil sits between district and city and is OPTIONAL — a school
-    that knows only its district must still be able to finish. Hidden when
-    the state has none, by the same rule as district and city: an empty
-    dropdown reads as a broken form.
-  */
-  protected readonly hasTehsils = computed(() => this.tehsils().length > 0);
   protected readonly hasCities = computed(() => this.cities().length > 0);
 
   /*
-    SR-3 (G27). The four geography masters as combobox options.
+    SR-1 / P1. Tehsil is OPTIONAL and it now hangs off the TOWN rather than
+    sitting between district and town — a school that knows only its town must
+    still be able to finish. Hidden when the chosen town has no tehsil rows, by
+    the same rule as district and city: an empty dropdown reads as a broken
+    form.
+
+    🔴 THIS GUARD IS ALSO THE WHOLE DEGRADE FOR A TOWN WE HAVE NOT MAPPED TO A
+    TEHSIL. m_mdm_city.TehsilId is nullable on purpose (039_m_mdm_tehsil.sql:
+    "a city whose tehsil we have not mapped is a city that still works"), so an
+    empty answer here is an ordinary, expected outcome and not a failure — the
+    control disappears, nothing else on the step moves, and the form still
+    submits.
+  */
+  protected readonly hasTehsils = computed(() => this.tehsils().length > 0);
+
+  /*
+    SR-3 (G27). The masters behind every dropdown on this form, as combobox
+    options.
 
     ⚠️ COMPUTED, NOT MAPPED INLINE IN THE TEMPLATE. `lookupsToOptions(states())`
     written in the binding rebuilds the array on every change-detection pass and
@@ -235,11 +253,29 @@ export class RegistrationComponent {
     OnPush it was given. A computed changes identity only when the master behind
     it actually changes, which for a cascading address form is exactly the four
     moments that matter.
+
+    ⚠️ P1 ADDS BOARD AND SCHOOL TYPE, and they obey the same rule for the same
+    reason even though they never cascade: the identity trap is a property of
+    the binding, not of the master.
   */
   protected readonly stateOptions = computed(() => lookupsToOptions(this.states()));
   protected readonly districtOptions = computed(() => lookupsToOptions(this.districts()));
-  protected readonly tehsilOptions = computed(() => lookupsToOptions(this.tehsils()));
   protected readonly cityOptions = computed(() => lookupsToOptions(this.cities()));
+  protected readonly tehsilOptions = computed(() => lookupsToOptions(this.tehsils()));
+
+  /*
+    P1 (G27). The last two plain <select>s on this form, now the one searchable
+    select like everything else.
+
+    ⚠️ BOTH ARE SHORT — seven boards and six school types — AND THAT COSTS
+    NOTHING. <ui-combobox> only grows a search box at `searchFrom` (8) options,
+    so below it the control opens showing everything and reads as the plain list
+    it was. The reason to convert anyway is G27: one select, so a fix to
+    keyboard handling or to the open-list positioning lands everywhere at once
+    rather than everywhere except two boxes nobody remembered.
+  */
+  protected readonly boardOptions = computed(() => lookupsToOptions(this.boards()));
+  protected readonly schoolTypeOptions = computed(() => lookupsToOptions(this.schoolTypes()));
 
   // ---- documents ----------------------------------------------------------
   protected readonly uploaded = signal<RequestDocument[]>([]);
@@ -434,6 +470,55 @@ export class RegistrationComponent {
               districtId: d.districtId,
               stateId: d.stateId,
               pincode: d.pincode,
+
+              /*
+                🔴 THESE FIVE WERE NOT CARRIED BACK, AND THE DRAFT SAVE WIPED
+                THEM ON THE NEXT STEP CHANGE.
+
+                `save()` posts `{ ...this.form() }`, and
+                USP_SaveSchoolRegistrationDraft's UPDATE branch assigns every
+                address column unconditionally — `TehsilId = @TehsilId`. A field
+                this object does not rebuild arrives as null and is written as
+                null. So a school that picked a tehsil on Monday, came back on
+                Thursday and pressed Continue once had silently lost its tehsil,
+                its village name and (for an address matched through Places) its
+                coordinates and place id.
+
+                ⚠️ SAME CLASS OF BUG AS THE ONE SR-3 RECORDS ON THE CONTACT
+                STEP: a field the form collected and the next step did not
+                carry. P1 depends on the tehsil surviving a resume — the control
+                is populated from the saved town — so it is fixed here rather
+                than worked around.
+
+                ⚠️ LATITUDE, LONGITUDE AND GooglePlaceId ARE CARRIED THOUGH THIS
+                FORM NEVER ASKS FOR THEM. They are set by the Places lookup
+                (JP.Domain/Address), and a form that cannot show a value still
+                must not be the thing that deletes it.
+              */
+              tehsilId: d.tehsilId,
+              areaOrVillage: d.areaOrVillage,
+              latitude: d.latitude,
+              longitude: d.longitude,
+              googlePlaceId: d.googlePlaceId,
+
+              /*
+                🔴 AND logoPath, WHICH WAS THE SAME OMISSION WITH A LOUDER
+                SYMPTOM — FOUND WHILE FIXING THE FIVE ABOVE.
+
+                The logo step REQUIRES it (`validate('logo')`), so a school that
+                uploaded its logo on Monday and came back on Thursday was
+                stopped on that step and told to add a logo it had already
+                added; the only way past was to upload the file again. The
+                template's own "Your image is saved. Choose another file to
+                replace it." branch could never render, because the value it
+                tests was never restored.
+
+                ⚠️ AND THE NEXT SAVE WOULD HAVE CLEARED LogoPath on the
+                registration row, by the same unconditional assignment as the
+                address columns — losing a file that is already on disk and that
+                nothing else points at.
+              */
+              logoPath: d.logoPath,
               principalName: d.principalName,
               principalMobile: d.principalMobile,
               hrContactName: d.hrContactName,
@@ -454,8 +539,45 @@ export class RegistrationComponent {
               requestedPlanCode: d.requestedPlanCode,
             });
 
+            /*
+              🔴 EVERY DEPENDENT LIST IS FETCHED FROM THE SAVED IDS, IN ONE GO —
+              NOT CHAINED ON EACH OTHER'S RESPONSES.
+
+              Each control is hidden until its own list arrives
+              (`hasDistricts`/`hasCities`/`hasTehsils`), so a list nobody
+              fetched is a control nobody draws: resuming a draft that HAD a
+              town used to show no town control at all, the value sitting in the
+              form unreadable and unchangeable until the user re-picked the
+              district. Loading only the districts fixes one level of a
+              three-level cascade.
+
+              ⚠️ THE PARENT OF EVERY LEVEL IS ALREADY IN HAND, which is why
+              nothing has to wait for anything: the draft carries stateId,
+              districtId and cityId together. Waterfalling the three requests
+              would add two round-trips to a resumed form for no information we
+              did not already have.
+
+              ⚠️ THROUGH THE loadX HELPERS, NOT THE onXChange HANDLERS. The
+              handlers also CLEAR the levels below them — right when a person
+              changes a parent, wrong when we are restoring what they saved, and
+              it would wipe the tehsil this same commit stopped losing.
+
+              ⚠️ ORDER OF ARRIVAL DOES NOT MATTER TO THE LABEL. <ui-combobox>
+              derives its text from `options()` and the value through a computed
+              (`selected`), so a value written before its options land renders
+              the moment they do. What the fetch buys is the control existing at
+              all.
+            */
             if (d.stateId) {
               this.loadDistricts(d.stateId);
+            }
+
+            if (d.districtId) {
+              this.loadCities(d.districtId);
+            }
+
+            if (d.cityId) {
+              this.loadTehsilsForCity(d.cityId);
             }
           }
 
@@ -492,18 +614,65 @@ export class RegistrationComponent {
     return this.errors()[key];
   }
 
+  /*
+    ==========================================================================
+    🔴 P1: THE CASCADE, AND WHY ITS SHAPE CHANGED
+    ==========================================================================
+    The form used to ask State -> District -> Tehsil -> Town, which is the
+    administrative hierarchy and is not how anybody thinks about where they are.
+    Worse, where a tehsil and its headquarters town share a name — Gohana
+    tehsil and Gohana town, and in Haryana that is EVERY town, because
+    012_seed_haryana_geography.sql seeds one city per tehsil as its headquarters
+    — the user met the same word in two different boxes and picked the wrong
+    one.
+
+    So the form now asks
+
+        State -> District -> Town/city -> Tehsil/Sub-tehsil -> Village/area
+
+    and each control is DRIVEN BY THE ONE ABOVE IT. The town is the thing people
+    know; the tehsil is a detail of the town, offered after it and never
+    required.
+
+    🔴 THE DATA DID NOT MOVE. m_mdm_city keeps its NOT NULL DistrictId and its
+    nullable TehsilId, and the payload still carries stateId, districtId,
+    cityId, tehsilId and areaOrVillage under those names. This is the order of
+    five questions, not a new shape for the answers.
+
+    ⚠️ THE CLEARING RULES, IN ONE PLACE, BECAUSE THEY ARE THE EASY THING TO GET
+    WRONG:
+
+      state    changes -> district, town, tehsil and village all go
+      district changes -> town, tehsil and village go; towns refetched
+      town     changes -> tehsil goes and is refetched FROM THE TOWN;
+                          village is KEPT
+      town     cleared -> tehsil goes with it, because a tehsil without its
+                          parent town is a selection the form can no longer
+                          explain
+      tehsil   changes -> nothing. It is the leaf; the village box below it is
+                          free text about a place, not a child of the tehsil.
+
+    ⚠️ VILLAGE IS CLEARED BY STATE AND DISTRICT BUT NOT BY TOWN, and that is a
+    judgement rather than a symmetry: it is the user's own words for a place,
+    and two towns in one district share the villages between them often enough
+    that re-picking the town does not make "Dhani Bhagwan Das" wrong. Changing
+    the DISTRICT does make it wrong, and a village name left behind under a new
+    district is worse than an empty box — it would be saved as fact.
+  */
+
   /**
-   * State changed, so the district list has to be refetched — and city has to
-   * be cleared, because a city under the old state is now wrong.
+   * State changed, so the district list has to be refetched — and everything
+   * below it belongs to a state they are no longer in.
    */
   protected onStateChange(stateId: number | null): void {
     this.set('stateId', stateId);
     this.set('districtId', null);
-    this.set('tehsilId', null);
     this.set('cityId', null);
+    this.set('tehsilId', null);
+    this.set('areaOrVillage', null);
     this.districts.set([]);
-    this.tehsils.set([]);
     this.cities.set([]);
+    this.tehsils.set([]);
 
     if (stateId) {
       this.loadDistricts(stateId);
@@ -519,28 +688,46 @@ export class RegistrationComponent {
     });
   }
 
+  /**
+   * District changed. The town hangs off the district and the tehsil hangs off
+   * the town, so both go and the town list is refetched.
+   */
   protected onDistrictChange(districtId: number | null): void {
     this.set('districtId', districtId);
-    this.set('tehsilId', null);
     this.set('cityId', null);
-    this.tehsils.set([]);
+    this.set('tehsilId', null);
+    this.set('areaOrVillage', null);
     this.cities.set([]);
+    this.tehsils.set([]);
 
     if (!districtId) {
       return;
     }
 
-    this.masters.getByParent(MASTER_KEYS.tehsil, districtId).subscribe({
-      next: (items) => this.tehsils.set(items),
-      error: () => this.tehsils.set([]),
-    });
+    this.loadCities(districtId);
+  }
 
-    /*
-      🔴 THE TOWNS OF THE WHOLE DISTRICT ARE LOADED NOW, not after a tehsil is
-      picked — because the tehsil step is optional. Waiting for it would mean a
-      school that skips tehsil never sees a town at all, which is the shape of
-      "optional" that is really "required and badly labelled".
-    */
+  /**
+   * 🔴 EVERY TOWN OF THE DISTRICT, AS SOON AS THE DISTRICT IS KNOWN.
+   *
+   * This fetch used to be justified by the tehsil step being optional: the
+   * towns of the whole district were loaded up front rather than after a
+   * tehsil, because waiting for an optional step would mean a school that
+   * skipped it never saw a town at all — the shape of "optional" that is really
+   * "required and badly labelled".
+   *
+   * 🔴 P1 KEEPS THAT OUTCOME AND REMOVES THE WAY TO LOSE IT. The town no longer
+   * waits on anything optional: the district is its only parent in the form,
+   * and the tehsil hangs off the town instead. There is now no order of
+   * clicking in which a school reaches the end of the cascade with an empty
+   * town list.
+   *
+   * ⚠️ The endpoint is unchanged — `district` as the parent still returns
+   * `DistrictId AS ParentId` for the towns of that district (USP_GetMaster,
+   * 'CITY'). What P1 drops is the second call that re-asked for the same towns
+   * narrowed by tehsil.
+   */
+  private loadCities(districtId: number): void {
     this.masters.getByParent(MASTER_KEYS.city, districtId).subscribe({
       next: (items) => this.cities.set(items),
       error: () => this.cities.set([]),
@@ -548,22 +735,83 @@ export class RegistrationComponent {
   }
 
   /**
-   * Picking a tehsil NARROWS the towns; clearing it widens them again.
+   * The town changed, so the tehsil under it is refetched from the new town.
+   *
+   * 🔴 THE TEHSIL IS CLEARED FIRST, EVERY TIME, INCLUDING WHEN THE TOWN IS
+   * CLEARED. A tehsil is now a detail OF a town; keeping one after its parent
+   * changed would leave the form holding a tehsil that the new town cannot
+   * explain and that the user never chose for it. It is a cheap thing to
+   * re-pick and an expensive thing to get silently wrong in a saved address.
+   *
+   * ⚠️ THE VILLAGE TEXT STAYS. See the clearing rules above: it is the user's
+   * own words, and moving between towns of one district does not make them
+   * wrong.
    */
-  protected onTehsilChange(tehsilId: number | null): void {
-    this.set('tehsilId', tehsilId);
-    this.set('cityId', null);
+  protected onCityChange(cityId: number | null): void {
+    this.set('cityId', cityId);
+    this.set('tehsilId', null);
+    this.tehsils.set([]);
 
-    const parent = tehsilId ?? this.value('districtId');
-
-    if (!parent) {
-      this.cities.set([]);
-      return;
+    if (cityId) {
+      this.loadTehsilsForCity(cityId);
     }
+  }
 
-    this.masters.getByParent(MASTER_KEYS.city, parent as number).subscribe({
-      next: (items) => this.cities.set(items),
-      error: () => this.cities.set([]),
+  /**
+   * The tehsils of ONE TOWN.
+   *
+   * ----------------------------------------------------------------------------
+   * 🔴 THE AUTHORITATIVE LINK IS m_mdm_city.TehsilId, AND THE CLIENT CANNOT SEE
+   *    IT
+   * ----------------------------------------------------------------------------
+   * A town's tehsil is a column on the town's own row, and
+   * 039_m_mdm_tehsil.sql's build guard asserts that when it is set it belongs to
+   * that town's district — two paths to one district that are proven to agree.
+   *
+   * But `Lookup` is id / code / name / displayOrder / parentId, and there is no
+   * room in it for a second parent. Widening that shape is not a local change:
+   * every master in four applications travels in it, so a sixth field would
+   * touch every consumer of MasterService to serve one form. So the server
+   * answers the question instead, and this method is the only place that asks
+   * it — which is also what makes the switch below a one-line change.
+   *
+   * ⚠️ THE ALTERNATIVE WAS A NAME MATCH — pre-select the tehsil whose name
+   * equals the chosen town's — and it was rejected on purpose. In Haryana every
+   * town IS a tehsil headquarters with the same name, so it would look right in
+   * testing while being a guess standing in for a foreign key; the first town
+   * that was renamed, or that sits in a tehsil named after somewhere else,
+   * would silently get the wrong one.
+   *
+   * ----------------------------------------------------------------------------
+   * ⚠️⚠️ TODO (LEAD) — REPOINT THIS CALL WHEN THE MASTER KEY LANDS
+   * ----------------------------------------------------------------------------
+   * `MASTER_KEYS.tehsil` is TEHSIL-BY-DISTRICT today: USP_GetMaster's 'TEHSIL'
+   * branch filters `DistrictId = @ParentId`, so passing a city id matches
+   * nothing and this returns an EMPTY LIST — the control hides and the tehsil
+   * question cannot be answered at all until the backend lands.
+   *
+   * It cannot return a WRONG list: district ids are stateId*100 + n (3-4
+   * digits) and city ids are stateId*10000 + n (5-6 digits), so a city id
+   * cannot collide with a district id and the failure mode is silence, not
+   * nonsense.
+   *
+   * WHAT HAS TO CHANGE, AND NOTHING ELSE:
+   *   1. jp-shared src/core/models/lookup.model.ts — a new key beside `tehsil`
+   *      for "the tehsils of this city" (the server's whitelist name, e.g.
+   *      'tehsil-by-city'). NOT ADDED HERE: jp-shared is the lead's.
+   *   2. the `MASTER_KEYS.tehsil` argument on the one line below.
+   */
+  private loadTehsilsForCity(cityId: number): void {
+    // ✅ Repointed by the lead: `tehsil-by-city` resolves through `m_mdm_city.TehsilId`.
+    this.masters.getByParent(MASTER_KEYS.tehsilByCity, cityId).subscribe({
+      next: (items) => this.tehsils.set(items),
+
+      /*
+        An empty list and a failed call look the same to the form on purpose,
+        exactly as they do for districts: both mean "no tehsil to offer here",
+        the control hides, and the address is still complete without it.
+      */
+      error: () => this.tehsils.set([]),
     });
   }
 

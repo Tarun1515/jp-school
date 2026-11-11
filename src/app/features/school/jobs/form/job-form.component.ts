@@ -140,6 +140,24 @@ export class JobFormComponent {
 
   protected readonly classLevelOptions = computed(() => lookupsToOptions(this.classLevels()));
 
+  /*
+    P3 (G27). Employment type was the last plain <select> on this form.
+
+    ⚠️ IT BUYS NO SEARCH BOX AND THAT IS NOT THE POINT. Five rows is below
+    `searchFrom` (8), so the combobox opens showing all of them exactly as the
+    native list did. What it buys is that there is ONE select in the product:
+    the next fix to its keyboard handling or its open-list placement lands here
+    too, instead of everywhere except the four boxes nobody remembered. And the
+    list is MASTER DATA (2.7 / 2.68) — "five rows" is a fact about today's seed,
+    not about the control, and the client may add rows without a deployment.
+
+    ⚠️ COMPUTED, NOT MAPPED INLINE IN THE TEMPLATE — the same reason as the four
+    above it: a map written in the binding hands the OnPush child a new
+    `options` identity on every change-detection pass.
+  */
+  protected readonly employmentTypeOptions = computed(() =>
+    lookupsToOptions(this.employmentTypes()));
+
   constructor() {
     const id = this.route.snapshot.paramMap.get('jobId');
 
@@ -314,6 +332,25 @@ export class JobFormComponent {
   */
   protected onQualificationChange(qualificationId: number | null): void {
     this.form.qualificationId = qualificationId;
+  }
+
+  /*
+    🔴 NULL NEVER ARRIVES, AND THE GUARD IS STILL RIGHT.
+
+    The control is [required], so <ui-combobox> renders no clear (×) button and
+    there is no gesture that commits null — which matches the old `<select>`
+    exactly: it had no placeholder row either, because a vacancy is always SOME
+    kind of employment. The guard keeps the existing value rather than folding
+    to 0 like `onSubjectChange` does: 0 is a real "not chosen" for a subject,
+    but `t_app_jobs.EmploymentTypeId` carries a foreign key with no zero row, so
+    posting 0 would earn a refusal about a record that does not exist.
+  */
+  protected onEmploymentTypeChange(employmentTypeId: number | null): void {
+    if (employmentTypeId === null) {
+      return;
+    }
+
+    this.form.employmentTypeId = employmentTypeId;
   }
 
   protected onSubjectsChange(ids: (string | number)[]): void {

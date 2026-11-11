@@ -224,6 +224,19 @@ export class BranchesComponent {
       `onDistrictChange` also CLEAR the choice below them — correct when a
       person changes a parent, wrong when we are restoring a saved row, and the
       reason the reset above is { emitEvent: false } in the first place.
+
+      ⚠️ NEITHER FETCH WAITS FOR THE OTHER, and under P1 that is the whole
+      restore: the saved row carries stateId and districtId together, so both
+      parents are known before either request goes out. The registration form
+      has a third hop for the same reason in the same shape (district -> towns,
+      town -> tehsils, all issued from the saved ids); a campus has no tehsil
+      field, so two is all there is here.
+
+      ⚠️ THE SAVED IDS ARE WRITTEN BEFORE THE LISTS ARRIVE, and that is fine:
+      <ui-combobox> resolves its text from `options()` through a computed, so a
+      value set first renders the moment its options land. What the fetch is
+      for is the control EXISTING — `hasDistricts()` / `hasCities()` hide a
+      control whose list is empty.
     */
     if (branch.stateId) this.loadDistricts(branch.stateId);
     if (branch.districtId) this.loadCities(branch.districtId);
