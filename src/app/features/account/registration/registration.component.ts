@@ -3,9 +3,27 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { BillingService, MasterService, Plan, ResolvedAddress, ToastService } from 'jp-shared/core';
 import { DocumentType, Lookup, MASTER_KEYS, RequestDocument, SaveDraftBody } from 'jp-shared/models';
-import { UiAddressSearchComponent, UiComboboxComponent, lookupsToOptions } from 'jp-shared/ui';
+import {
+  UiAddressSearchComponent,
+  UiComboboxComponent,
+  UiMapPickerComponent,
+  distanceKm,
+  lookupsToOptions,
+} from 'jp-shared/ui';
 
+import {
+  CoordinateAxis,
+  coordinateMessage,
+  coordinatePairMessage,
+  coordinatePairProblem,
+  coordinateProblem,
+  roundCoordinate,
+} from '../../../core/coordinates';
 import { RegistrationService } from '../../../core/registration.service';
+import {
+  COMPULSORY_SCHOOL_FIELDS,
+  compulsorySchoolFieldError,
+} from '../../../core/school-required-fields';
 
 /** The steps, in order. `review` is last and is not editable. */
 /*
@@ -79,8 +97,25 @@ const STEP_META: readonly StepMeta[] = [
   { key: 'review', label: 'Check and send', hint: 'Everything you have entered, before it goes.' },
 ];
 
-/** Five letters, four digits, one letter. Mirrors the server's rule exactly. */
-const PAN_FORMAT = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+/*
+  🔴 PAN_FORMAT MOVED TO core/school-required-fields.ts (SR-6).
+
+  The profile screen now enforces the same six fields with the same wording, and
+  two copies of a pattern are two patterns the moment one of them is corrected.
+  Everything about the rule — the regex, the year bounds and all eight messages
+  — lives in that one module, and the long argument for it is at the top of it.
+*/
+
+/**
+ * How far a pin may sit from the stated address before the form asks about it.
+ *
+ * 🔴 SR-6. Three kilometres is the client's number and it is a QUESTION, not a
+ * limit: a school on a bypass road, or one whose Places result landed on the
+ * town centre, is entitled to a pin that far out and keeps it by saying so. The
+ * server flags the gap for admin review either way, which is why nothing here
+ * refuses.
+ */
+const FAR_PIN_KM = 3;
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'failed';
 
@@ -137,7 +172,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'failed';
 @Component({
   selector: 'app-registration',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [UiAddressSearchComponent, FormsModule, UiComboboxComponent],
+  imports: [UiAddressSearchComponent, FormsModule, UiComboboxComponent, UiMapPickerComponent],
   templateUrl: './registration.component.html',
   styleUrl: './registration.component.scss',
 })
@@ -276,6 +311,111 @@ export class RegistrationComponent {
   */
   protected readonly boardOptions = computed(() => lookupsToOptions(this.boards()));
   protected readonly schoolTypeOptions = computed(() => lookupsToOptions(this.schoolTypes()));
+
+  // ---- the map pin (SR-6) -------------------------------------------------
+  /*
+    ==========================================================================
+    🔴 THE ANCHOR IS THE GEOCODED ADDRESS. THE PIN IS WHAT GETS SAVED.
+    ==========================================================================
+    Two different facts, and conflating them is the whole bug class this
+    feature exists to avoid:
+
+      THE ANCHOR is where the provider put the address the school STATED. It
+        is not stored and it is not sent — `latitude`/`longitude` on the draft
+        are the PIN. It exists so the form can measure, and so the picker has
+        somewhere to start.
+
+      THE PIN is `form.latitude` / `form.longitude`. It is what a teacher's
+        "jobs near me" will read, and it is the only one of the two that
+        survives this page.
+
+    ⚠️ THE ANCHOR IS NULL UNTIL THE ADDRESS SEARCH RESOLVES ONE, which today is
+    the normal case: AddressLookupOptions.Provider defaults to `None` until the
+    client's key is installed, so <ui-address-search> renders nothing and
+    nothing geocodes anything. A null anchor means the form has no second point
+    to measure from — and `pinDistanceKm` is null rather than zero, because
+    "we cannot tell" and "they coincide" must not share a value.
+
+    🔴 AND A RESUMED DRAFT HAS A PIN WITH NO ANCHOR. The coordinates come back
+    from the server (see the constructor); the geocode that produced them does
+    not. So the distance question cannot be asked about a pin somebody set last
+    Monday, which is correct: it was asked when the pin was placed.
+  */
+  private readonly anchorLatitude = signal<number | null>(null);
+  private readonly anchorLongitude = signal<number | null>(null);
+
+  protected readonly pinAnchorLatitude = this.anchorLatitude.asReadonly();
+  protected readonly pinAnchorLongitude = this.anchorLongitude.asReadonly();
+
+  /**
+   * The pin the school has said it wants to keep, by its coordinates.
+   *
+   * ⚠️ THE COORDINATES, NOT A BOOLEAN. A flag would mean "they answered the
+   * question once", and the next thing they drag the pin to is a different
+   * question — a school that confirmed a 4 km pin and then dropped one 40 km
+   * away would never be asked again. Comparing the kept point with the current
+   * one makes the acknowledgement belong to the pin it was given for.
+   */
+  private readonly keptPin = signal<{ latitude: number; longitude: number } | null>(null);
+
+  /**
+   * How far the pin is from the stated address, or null when that cannot be
+   * known.
+   *
+   * ⚠️ `distanceKm` IS THE SHARED HELPER, and it is shared for a reason: the
+   * admin queue flags the same gap with the same number, and two haversines
+   * rounded differently would have the school told 3.0 km and the reviewer
+   * shown 2.9.
+   */
+  protected readonly pinDistanceKm = computed<number | null>(() => {
+    const anchorLat = this.anchorLatitude();
+    const anchorLng = this.anchorLongitude();
+    const lat = this.value('latitude');
+    const lng = this.value('longitude');
+
+    if (anchorLat === null || anchorLng === null) return null;
+    if (lat === null || lat === undefined || lng === null || lng === undefined) return null;
+
+    /*
+      ⚠️ `Number.isFinite` ON THE RESULT, WHICH IS THE HELPER'S DOCUMENTED
+      CONTRACT: `distanceKm` is garbage-in/NaN-out on purpose, so that a missing
+      coordinate can never come back as "0 km — your pin is at your address".
+      Everything downstream of here treats null as "cannot tell", so a NaN has
+      to become one rather than being compared against 3.
+    */
+    const km = distanceKm(anchorLat, anchorLng, lat, lng);
+
+    return Number.isFinite(km) ? km : null;
+  });
+
+  /**
+   * 🔴 THE INLINE QUESTION, AND IT IS A QUESTION RATHER THAN A REFUSAL.
+   *
+   * ⚠️ `?? 0` IS NOT A DEFAULT, IT IS THE "NO ANCHOR" ANSWER. A null distance
+   * means there is nothing to compare the pin with, and a form that cannot
+   * measure must not imply it has: no anchor, no question, and the step
+   * continues exactly as it did before this feature existed.
+   */
+  protected readonly pinIsFar = computed(() => (this.pinDistanceKm() ?? 0) > FAR_PIN_KM);
+
+  protected readonly needsPinConfirm = computed(() => {
+    if (!this.pinIsFar()) return false;
+
+    const kept = this.keptPin();
+
+    return kept === null
+      || kept.latitude !== this.value('latitude')
+      || kept.longitude !== this.value('longitude');
+  });
+
+  /** The distance as the sentence says it — one decimal under 10 km. */
+  protected readonly pinDistanceLabel = computed(() => {
+    const km = this.pinDistanceKm();
+
+    if (km === null) return '';
+
+    return km < 10 ? `${km.toFixed(1)} km` : `${Math.round(km)} km`;
+  });
 
   // ---- documents ----------------------------------------------------------
   protected readonly uploaded = signal<RequestDocument[]>([]);
@@ -610,6 +750,28 @@ export class RegistrationComponent {
     }
   }
 
+  /**
+   * The PAN, stored as the box already LOOKS.
+   *
+   * 🔴 SR-6. `style="text-transform: uppercase"` on the input is paint: it
+   * changes the glyphs and not the value, so somebody who typed `abcde1234f`
+   * saw ABCDE1234F and the draft held the lowercase string. That cost nothing
+   * while the field was optional and un-enforced; now that both this form and
+   * the server test `^[A-Z]{5}[0-9]{4}[A-Z]$`, the gap is a school being
+   * refused over a difference it was never shown.
+   *
+   * ⚠️ UPPERCASED, NOT TRIMMED, AS THEY TYPE. A trim on every keystroke fights
+   * anybody who pastes with a trailing space and then keeps typing; the trim
+   * belongs at the moment of judgement, and `validate` does it there.
+   *
+   * ⚠️ Safe with the one-way `[ngModel]` + `(ngModelChange)` binding this form
+   * uses throughout: the model is the source, so the input is redrawn from the
+   * uppercased value rather than keeping its own copy.
+   */
+  protected setPan(value: string | null): void {
+    this.set('panNumber', value === null ? null : value.toUpperCase());
+  }
+
   protected error(key: string): string | undefined {
     return this.errors()[key];
   }
@@ -884,8 +1046,15 @@ export class RegistrationComponent {
       districtId: address.districtId,
       cityId: address.cityId,
       tehsilId: address.tehsilId,
-      latitude: address.latitude,
-      longitude: address.longitude,
+
+      /*
+        ⚠️ SR-6: ROUNDED TO SIX DECIMALS ON THE WAY IN. Places answers with
+        seven, and the two boxes this step now shows refuse a seventh — so a
+        school that looked up its own address would have been stopped by a rule
+        about a number it never typed. See core/coordinates.ts.
+      */
+      latitude: roundCoordinate(address.latitude),
+      longitude: roundCoordinate(address.longitude),
       googlePlaceId: address.googlePlaceId,
 
       // Theirs unless it is empty; the provider's only as a starting point.
@@ -895,6 +1064,26 @@ export class RegistrationComponent {
     }));
 
     /*
+      🔴 SR-6. THE ANCHOR IS SET HERE AND NOWHERE ELSE — this is the only
+      moment in the form's life when a geocoded point for the STATED address
+      exists. The pin was just set to the same point by the update above, so the
+      distance is zero and the question below is quiet until somebody moves it.
+
+      ⚠️ THE ACKNOWLEDGEMENT IS DROPPED WITH IT. A school that kept a far pin
+      for the old address and then looked up a different one has answered a
+      question about a place it is no longer claiming to be.
+    */
+    /*
+      ⚠️ THE ANCHOR IS ROUNDED TOO, so it is byte-identical to the pin that was
+      just written from it. Rounded one and not the other, `distanceKm` would
+      answer a few centimetres instead of zero — true, and the sort of
+      "0.0 km away" that makes somebody doubt the number.
+    */
+    this.anchorLatitude.set(roundCoordinate(address.latitude));
+    this.anchorLongitude.set(roundCoordinate(address.longitude));
+    this.keptPin.set(null);
+
+    /*
       ⚠️ The messages for the fields this just filled go with them. `set()`
       clears an error as the user types for the same reason: an error still
       showing after it has been fixed teaches people to ignore errors.
@@ -902,7 +1091,9 @@ export class RegistrationComponent {
     this.errors.update((e) => {
       const next = { ...e };
 
-      for (const key of ['addressLine1', 'stateId', 'pincode']) {
+      // ⚠️ SR-6 adds the two coordinates: the resolve replaces them, so a
+      // message about the pair somebody typed is about values that are gone.
+      for (const key of ['addressLine1', 'stateId', 'pincode', 'latitude', 'longitude']) {
         delete next[key];
       }
 
@@ -924,6 +1115,61 @@ export class RegistrationComponent {
     if (address.cityId) {
       this.loadTehsilsForCity(address.cityId);
     }
+  }
+
+  /**
+   * A pin dropped on the map.
+   *
+   * 🔴 SR-6. THE PIN IS THE SAVED VALUE, so this writes the same two fields the
+   * Places lookup writes and nothing else — one pair of coordinates for the
+   * school, whichever of the two produced it. The draft is persisted by
+   * `next()` on the step change, exactly as every other field on this step is.
+   *
+   * ⚠️ THE ACKNOWLEDGEMENT IS NOT CLEARED HERE, AND DOES NOT NEED TO BE:
+   * `needsPinConfirm` compares the kept COORDINATES with the current ones, so
+   * a new pin is a new question by construction. Clearing a flag here is what
+   * that design replaces.
+   */
+  protected onPinPicked(point: { latitude: number; longitude: number }): void {
+    /*
+      🔴 ROUNDED, NEVER VALIDATED, BECAUSE NOBODY TYPED THIS. Leaflet reports a
+      click to full double precision — 28.45949658203125 — which the typed
+      boxes' six-decimal rule would refuse. Putting a map click through a rule
+      the user has no way to satisfy would make the picker a dead end. The
+      argument is at the top of core/coordinates.ts.
+    */
+    this.set('latitude', roundCoordinate(point.latitude));
+    this.set('longitude', roundCoordinate(point.longitude));
+  }
+
+  /** "Keep it" — the far pin is the school's answer, recorded against that pin. */
+  protected keepFarPin(): void {
+    const latitude = this.value('latitude');
+    const longitude = this.value('longitude');
+
+    if (latitude === null || latitude === undefined || longitude === null || longitude === undefined) {
+      return;
+    }
+
+    this.keptPin.set({ latitude, longitude });
+  }
+
+  /**
+   * The other answer: put the pin back on the address.
+   *
+   * ⚠️ IT MOVES THE PIN RATHER THAN CLEARING IT. Clearing would leave a school
+   * that only wanted to undo a drag with no coordinates at all — worse than
+   * either the pin it had or the address it stated.
+   */
+  protected movePinToAddress(): void {
+    const latitude = this.anchorLatitude();
+    const longitude = this.anchorLongitude();
+
+    if (latitude === null || longitude === null) return;
+
+    this.set('latitude', latitude);
+    this.set('longitude', longitude);
+    this.keptPin.set(null);
   }
 
   /**
@@ -1051,6 +1297,24 @@ export class RegistrationComponent {
    * Validating the whole form at submit and dumping twelve messages is how a
    * long form becomes something people abandon: the errors are on steps they
    * cannot see, and fixing one does not visibly help.
+   *
+   * ----------------------------------------------------------------------------
+   * 🔴 SR-6: SIX FIELDS ON `basics` BECAME COMPULSORY, AND THE SHAPE DID NOT
+   *    CHANGE
+   * ----------------------------------------------------------------------------
+   * School type, board, affiliation number, registration number, PAN and the
+   * established year are all required now (the client's instruction). Every one
+   * of them already lived on `basics`, so the per-step shape above holds as it
+   * was: a school is stopped on the screen the empty box is on, which is the
+   * only kind of "required" a long form can afford.
+   *
+   * 🔴 THE SERVER REFUSES ALL SIX INDEPENDENTLY, AND THIS IS NOT THAT CHECK.
+   * `/registration/draft/{id}/submit` is where the rule is ENFORCED — a client
+   * is a convenience and can be skipped by anything that is not this form. What
+   * this block buys is the refusal arriving BEFORE the round trip, next to the
+   * box it is about, instead of as one server message about a step the person
+   * has already left. If the two ever disagree the server wins, and the fix
+   * belongs here rather than there.
    */
   private validate(step: Step): boolean {
     const f = this.form();
@@ -1061,15 +1325,24 @@ export class RegistrationComponent {
         errors['schoolName'] = 'We need the name as it appears on your registration certificate.';
       }
 
-      if (f.establishedYear && (f.establishedYear < 1800 || f.establishedYear > new Date().getFullYear())) {
-        errors['establishedYear'] = 'That year does not look right.';
-      }
+      /*
+        🔴 SR-6. ALL SIX, FROM THE ONE MODULE THAT OWNS THE RULE.
 
-      // ⚠️ Optional, so only a MALFORMED value is an error. Same rule as the
-      // server — the client checking something stricter would reject a PAN the
-      // API would have accepted.
-      if (f.panNumber?.trim() && !PAN_FORMAT.test(f.panNumber.trim().toUpperCase())) {
-        errors['panNumber'] = 'A PAN is ten characters — five letters, four digits, then a letter. For example ABCDE1234F.';
+        The messages, the PAN pattern and the year bounds are in
+        core/school-required-fields.ts because the PROFILE enforces the same six
+        and two copies would drift — see the argument at the top of that file.
+
+        ⚠️ THE LOOP IS OVER THE PAYLOAD'S OWN KEYS, which is what lets the error
+        map be keyed by them too: `error('panNumber')` in the template, and
+        `set()` clearing the message as they type, both already work off the
+        field name. Nothing had to learn a new identifier for this.
+      */
+      for (const field of COMPULSORY_SCHOOL_FIELDS) {
+        const message = compulsorySchoolFieldError(field, f[field]);
+
+        if (message !== null) {
+          errors[field] = message;
+        }
       }
     }
 
@@ -1084,6 +1357,37 @@ export class RegistrationComponent {
 
       if (f.pincode?.trim() && !/^[1-9][0-9]{5}$/.test(f.pincode.trim())) {
         errors['pincode'] = 'An Indian PIN code is six digits and does not start with a zero.';
+      }
+
+      /*
+        ==========================================================================
+        🔴 SR-6: THE TWO COORDINATE BOXES ARE CHECKED, AND THEY ARE STILL
+           OPTIONAL
+        ==========================================================================
+        An empty pair passes — this step has never required coordinates and
+        still does not. What is checked is a value somebody TYPED: a longitude in
+        the latitude box, nine decimal places pasted out of a mapping tool, half
+        a pin.
+
+        🔴 NOTHING HERE IS ABOUT THE MAP. A pin dropped on the picker, and a
+        point from the address provider, are ROUNDED on the way in (see
+        `onPinPicked` and `onAddressResolved`) and cannot fail these tests —
+        which is deliberate: a rule the user cannot satisfy and did not trigger
+        would turn a map click into a dead end. The rule and that argument live
+        in core/coordinates.ts, with the campus form reading the same one.
+      */
+      for (const axis of ['latitude', 'longitude'] as const) {
+        const problem = coordinateProblem(f[axis], axis);
+
+        if (problem !== null) {
+          errors[axis] = coordinateMessage(axis, problem);
+        }
+      }
+
+      const missingHalf = coordinatePairProblem(f.latitude, f.longitude);
+
+      if (missingHalf !== null && errors[missingHalf] === undefined) {
+        errors[missingHalf] = coordinatePairMessage(missingHalf);
       }
     }
 
@@ -1143,8 +1447,32 @@ export class RegistrationComponent {
   }
 
   // ---- navigation ---------------------------------------------------------
+  /**
+   * Forward, if the step in front of them is complete.
+   *
+   * 🔴 SR-6: THE FAR-PIN QUESTION IS ASKED HERE, AND IT IS NOT VALIDATION.
+   *
+   * It is deliberately NOT in `validate('address')`: that function answers "is
+   * this step filled in correctly", and a pin 5 km out is not incorrect — a
+   * school on a bypass road has one. So the question is a separate gate with a
+   * separate answer, it is rendered inline on the step (never a toast, which
+   * scrolls away from the thing it is asking about), and the school can say
+   * "keep it" and continue. Nothing here can stop a registration.
+   *
+   * ⚠️ IT ONLY GATES THE ADDRESS STEP. `needsPinConfirm` is false everywhere
+   * else by construction — no anchor, or a pin that coincides with it — but
+   * naming the step keeps a later edit from accidentally making the pin
+   * somebody's problem on the documents screen.
+   *
+   * ⚠️ AND IT RUNS AFTER `validate`, so an empty address line is reported
+   * first. Two unrelated questions at once is how people answer neither.
+   */
   protected next(): void {
     if (!this.validate(this.step())) {
+      return;
+    }
+
+    if (this.step() === 'address' && this.needsPinConfirm()) {
       return;
     }
 

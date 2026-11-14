@@ -44,6 +44,30 @@
   color: var(--jp-text-muted);
 }
 
+/*
+  SR-6. The saved pin, under the address it is meant to agree with.
+
+  ⚠️ Mono and smaller than the address, because it is a reference rather than
+  something to read: two numbers read as a pair only when their digits line up,
+  and these are numbers somebody will compare against another screen.
+
+  ⚠️ IT INHERITS THE CELL'S TRUNCATION, which is correct — a coordinate pair is
+  about nine characters wider than half the narrow-viewport cell, so it ellipses
+  rather than forcing the column open. The full value is in the dialog.
+*/
+.branch__pin {
+  display: block;
+  font-family: var(--jp-font-family-mono);
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: var(--jp-text-subtle);
+
+  &--empty {
+    font-family: inherit;
+    font-style: italic;
+  }
+}
+
 // -----------------------------------------------------------------------------
 // THE DIALOG
 // -----------------------------------------------------------------------------
@@ -82,6 +106,48 @@
 .form-check .field__helper {
   display: block;
   margin-top: 0.125rem;
+}
+
+/*
+  SR-6. The map picker in the dialog.
+
+  ⚠️ display: block ON THE ELEMENT, because a custom element is inline by
+  default and an inline box ignores the vertical margins that separate it from
+  the helper above and the question below. The component sets its own height
+  from [heightPx]; nothing here touches that.
+*/
+ui-map-picker {
+  display: block;
+  margin: v.$space-3 0;
+}
+
+/*
+  SR-6. The far-pin question.
+
+  🔴 A QUESTION, NOT AN ERROR, AND THE COLOUR SAYS SO. It uses the warning rule
+  rather than the danger one: nothing is wrong, the save is paused for one
+  answer, and a red box would tell a school on a bypass road that its own
+  address is a mistake.
+
+  ⚠️ BOTH BUTTON MARGINS ARE LOAD-BEARING. A `.btn` is inline-flex, so at 375 —
+  where the sentence wraps to four lines and the buttons wrap again under it —
+  the top margin is all that keeps them off the last line of text, and the right
+  margin is all that separates them side by side in the dialog at 1440.
+*/
+.pin-confirm {
+  margin: v.$space-3 0 0;
+  padding: v.$space-3 v.$space-4;
+  font-size: var(--jp-font-size-sm);
+  line-height: var(--jp-line-height-relaxed);
+  color: var(--jp-text);
+  background: var(--jp-warning-soft);
+  border: 1px solid var(--jp-warning);
+  border-radius: var(--jp-radius-lg);
+
+  .btn {
+    margin-top: v.$space-2;
+    margin-right: v.$space-2;
+  }
 }
 
 @include m.down(md) {

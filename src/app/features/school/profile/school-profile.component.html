@@ -63,6 +63,44 @@
 
       <div class="card__body">
         <!--
+          ==================================================================
+          🔴 SR-6: THE SIX ARE COMPULSORY NOW, AND AN OLD SCHOOL IS PROMPTED
+             RATHER THAN REFUSED
+          ==================================================================
+          School type, board, affiliation number, registration number, PAN and
+          the established year. Every school already registered did so when four
+          of the six were optional, so a row with blanks in it is ORDINARY.
+
+          🔴 2.62's "say why, show the road", and not a red error on a page
+          somebody opened to change their phone number. It names what is
+          missing, says what it is for, and the boxes are directly underneath —
+          nothing is disabled, nothing else on the page changes, and an
+          unrelated edit still saves.
+
+          ⚠️ IT LISTS WHAT IS BLANK, NOT WHAT IS INVALID. A malformed value is
+          reported under its own box; saying it twice in two voices would be
+          worse than saying it once.
+
+          ⚠️ `role="status"`, not `alert`: it is true when the page opens and is
+          not a response to anything the person just did.
+        -->
+        @if (missingCompulsory().length > 0) {
+          <p class="banner banner--warning" role="status">
+            <strong>
+              @if (missingCompulsory().length === 1) {
+                One detail is still missing from your school's record.
+              } @else {
+                {{ missingCompulsory().length }} details are still missing from your school's record.
+              }
+            </strong>
+            We now ask every school for its {{ missingCompulsory().join(', ') }}
+            — it is what lets us confirm you are the school you say you are, and
+            a complete record is checked faster when you next need something
+            verified. The boxes are below; fill in what you have and press Save.
+          </p>
+        }
+
+        <!--
           The name is READ-ONLY and says why. It was verified; a rename changes
           what was checked, so the server refuses it and this explains rather
           than offering a field that fails on save.
@@ -92,11 +130,20 @@
             where the pill cannot go, and it matches the "Never shown to
             teachers" note on PAN below.
           -->
+          <!--
+            ⚠️ SR-6: [required] ON BOTH, which is the fact rather than a
+            decoration — and it is also what stops the combobox printing
+            "Optional" of its own accord, which it did until this change and
+            which is now untrue. [error] carries the message the way the State
+            box on this page already does.
+          -->
           <ui-combobox
             label="School type"
             helper="Teachers see this."
             placeholderOption="Choose…"
             [options]="schoolTypeOptions()"
+            [required]="true"
+            [error]="compulsoryError('schoolTypeId')"
             [ngModel]="value('schoolTypeId')"
             (ngModelChange)="set('schoolTypeId', $event, 'basics')" />
 
@@ -105,6 +152,8 @@
             helper="Teachers see this."
             placeholderOption="Choose…"
             [options]="boardOptions()"
+            [required]="true"
+            [error]="compulsoryError('boardId')"
             [ngModel]="value('boardId')"
             (ngModelChange)="set('boardId', $event, 'basics')" />
 
@@ -114,31 +163,55 @@
             </label>
             <input class="form-control" id="establishedYear" type="number"
                    inputmode="numeric" min="1800" max="2100" placeholder="1998"
+                   [attr.aria-invalid]="compulsoryError('establishedYear') ? 'true' : null"
                    [ngModel]="value('establishedYear')"
                    (ngModelChange)="set('establishedYear', $event, 'basics')" />
+            @if (compulsoryError('establishedYear'); as message) {
+              <span class="field__error">{{ message }}</span>
+            }
           </div>
 
           <div class="field">
             <label class="field__label" for="affiliationNumber">Affiliation number</label>
             <input class="form-control" id="affiliationNumber" type="text"
+                   [attr.aria-invalid]="compulsoryError('affiliationNumber') ? 'true' : null"
                    [ngModel]="value('affiliationNumber')"
                    (ngModelChange)="set('affiliationNumber', $event, 'basics')" />
+            @if (compulsoryError('affiliationNumber'); as message) {
+              <span class="field__error">{{ message }}</span>
+            }
           </div>
 
           <div class="field">
             <label class="field__label" for="registrationNo">Registration number</label>
             <input class="form-control" id="registrationNo" type="text"
+                   [attr.aria-invalid]="compulsoryError('registrationNo') ? 'true' : null"
                    [ngModel]="value('registrationNo')"
                    (ngModelChange)="set('registrationNo', $event, 'basics')" />
+            @if (compulsoryError('registrationNo'); as message) {
+              <span class="field__error">{{ message }}</span>
+            }
           </div>
 
           <div class="field">
             <label class="field__label" for="panNumber">PAN</label>
+            <!--
+              ⚠️ (ngModelChange) GOES THROUGH `setPan`. The uppercase beside it
+              is CSS — glyphs, not the value — so a typed `abcde1234f` was shown
+              as ABCDE1234F and stored lower case. Nothing tested it before
+              SR-6; now this screen and the server both test
+              ^[A-Z]{5}[0-9]{4}[A-Z]$, and the gap would be a refusal over a
+              difference the school was never shown.
+            -->
             <input class="form-control" id="panNumber" type="text" maxlength="10"
                    placeholder="AAAAA0000A" style="text-transform: uppercase"
+                   [attr.aria-invalid]="compulsoryError('panNumber') ? 'true' : null"
                    [ngModel]="value('panNumber')"
-                   (ngModelChange)="set('panNumber', $event, 'basics')" />
+                   (ngModelChange)="setPan($event)" />
             <span class="field__helper">Never shown to teachers.</span>
+            @if (compulsoryError('panNumber'); as message) {
+              <span class="field__error">{{ message }}</span>
+            }
           </div>
         </div>
 
@@ -551,6 +624,71 @@
             }
           </p>
         }
+
+        <!--
+          ====================================================================
+          🔴 SR-6: THE MAP PIN — SHOWN, AND NOT EDITABLE HERE. SAY WHY.
+          ====================================================================
+          `UpdateSchoolProfileBody` and `SchoolProfile` carry no latitude or
+          longitude. The COLUMNS are on t_app_schools
+          (036_alter_address_columns.sql) and approval fills them in from the
+          registration — the facts are there; this contract neither reads nor
+          writes them. Exactly the gap the tehsil and village boxes have on this
+          page, a few lines above.
+
+          🔴 SO THERE ARE NO NUMBER BOXES HERE, AND THAT IS THE POINT. A box
+          whose value `saveSection()` cannot send would let a school nudge its
+          coordinates, press Save, read "Saved", and change nothing. A field the
+          server ignores is a field somebody will one day expect it to honour.
+          The campus form HAS the two boxes, because `SaveBranchBody` genuinely
+          carries both.
+
+          ⚠️ WHAT IS SHOWN IS THE HEAD OFFICE CAMPUS'S PIN, which
+          `SchoolProfile.branches` does carry — a different row from the
+          school's own coordinates, and the copy says so rather than implying
+          one number. For a single-campus school it is nonetheless the pin a
+          teacher's "jobs near me" will read.
+
+          ⚠️ AND THE ROAD IS DIFFERENT FOR THE TWO KINDS OF SCHOOL. A
+          single-campus school cannot reach /branches at all — singleCampusGuard
+          redirects it back here (2.10) — so sending them to the Campuses screen
+          would be sending them in a circle. They are told what is true instead.
+        -->
+        <div class="pin">
+          <span class="pin__label">Where you are on the map</span>
+
+          @if (headOfficePin(); as pin) {
+            <span class="pin__value">{{ pin.coordinates }}</span>
+            <span class="field__helper">
+              The pin on {{ pin.name }}, to six decimal places — about ten
+              centimetres. When teachers can search by distance, this is what
+              puts you in their results.
+            </span>
+          } @else {
+            <span class="pin__value pin__value--empty">Not set</span>
+            <span class="field__helper">
+              Nobody has dropped a pin for your school yet. Nothing is wrong
+              without one — it is what will put you in a teacher's "jobs near
+              me" when that search arrives.
+            </span>
+          }
+
+          <p class="note">
+            @if (isMultiCampus()) {
+              This page cannot change it yet: the profile's save has no place to
+              put coordinates, and a box here would tell you it had saved
+              something it had dropped. Your pin is editable today on the
+              <a routerLink="/branches">Campuses</a> screen, on a map, and this
+              page gets the same two boxes as soon as it can store them.
+            } @else {
+              This page cannot change it yet: the profile's save has no place to
+              put coordinates, and a box here would tell you it had saved
+              something it had dropped. Yours was set from the address you gave
+              when you registered. Ask us and we will move it — and this page
+              gets a map of its own as soon as it can store what you drop.
+            }
+          </p>
+        </div>
 
         <div class="form-grid">
           <div class="field">

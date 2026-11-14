@@ -94,6 +94,8 @@
               label="School type"
               placeholderOption="Choose…"
               [options]="schoolTypeOptions()"
+              [required]="true"
+              [error]="error('schoolTypeId')"
               [ngModel]="value('schoolTypeId')"
               (ngModelChange)="set('schoolTypeId', $event)" />
 
@@ -101,51 +103,107 @@
               label="Board"
               placeholderOption="Choose…"
               [options]="boardOptions()"
+              [required]="true"
+              [error]="error('boardId')"
               [ngModel]="value('boardId')"
               (ngModelChange)="set('boardId', $event)" />
 
+            <!--
+              ==================================================================
+              🔴 SR-6: SIX FIELDS ON THIS STEP ARE COMPULSORY NOW, AND THE WORD
+                 "optional" CAME OFF ALL SIX
+              ==================================================================
+              School type, board, affiliation number, registration number, PAN
+              and the established year. The client asked for it; the enforcement
+              is in `validate('basics')` and, independently, on the server.
+
+              🔴 THE LABEL IS THE PROMISE. A field marked optional that then
+              refuses to let somebody past is the worst version of this change —
+              they read the word, left the box, pressed Continue and were told
+              off for doing what the screen said. So the spans are DELETED
+              rather than moved or restyled.
+
+              ⚠️ NOTHING WAS PUT IN THEIR PLACE, and that is this product's
+              convention rather than an omission: `field__optional` exists
+              precisely because almost everything here is required, so marking
+              the required ones marks nothing (see _forms.scss). The two
+              comboboxes carry `[required]="true"`, which is what stops them
+              printing "Optional" of their own accord — and it is also what a
+              screen reader announces.
+            -->
             <div class="field">
-              <label class="field__label" for="affiliationNumber">
-                Affiliation number <span class="field__optional">optional</span>
-              </label>
+              <label class="field__label" for="affiliationNumber">Affiliation number</label>
               <input class="form-control" id="affiliationNumber" type="text"
                      placeholder="e.g. CBSE/2011/34120"
+                     [attr.aria-invalid]="error('affiliationNumber') ? 'true' : null"
                      [ngModel]="value('affiliationNumber')"
                      (ngModelChange)="set('affiliationNumber', $event)" />
+              <p class="field__helper">
+                Whatever your board issued you. We check it against them.
+              </p>
+              @if (error('affiliationNumber')) { <p class="field__error">{{ error('affiliationNumber') }}</p> }
             </div>
 
             <div class="field">
-              <label class="field__label" for="registrationNo">
-                Registration number <span class="field__optional">optional</span>
-              </label>
+              <label class="field__label" for="registrationNo">Registration number</label>
               <input class="form-control" id="registrationNo" type="text"
+                     [attr.aria-invalid]="error('registrationNo') ? 'true' : null"
                      [ngModel]="value('registrationNo')"
                      (ngModelChange)="set('registrationNo', $event)" />
+              <p class="field__helper">
+                From your school, society or trust registration certificate.
+              </p>
+              @if (error('registrationNo')) { <p class="field__error">{{ error('registrationNo') }}</p> }
             </div>
 
             <div class="field">
-              <label class="field__label" for="panNumber">
-                PAN <span class="field__optional">optional</span>
-              </label>
+              <label class="field__label" for="panNumber">PAN</label>
+              <!--
+                ⚠️ (ngModelChange) GOES THROUGH `setPan`, NOT `set`. The
+                uppercase here is CSS — it changes the glyphs and not the value
+                — so a typed `abcde1234f` looked like ABCDE1234F and was stored
+                lowercase. Harmless while the field was optional and nothing
+                tested it; now that this form and the server both test
+                ^[A-Z]{5}[0-9]{4}[A-Z]$ it is a refusal over a difference the
+                school was never shown.
+              -->
               <input class="form-control" id="panNumber" type="text" maxlength="10"
                      placeholder="ABCDE1234F" style="text-transform: uppercase"
+                     [attr.aria-invalid]="error('panNumber') ? 'true' : null"
                      [ngModel]="value('panNumber')"
-                     (ngModelChange)="set('panNumber', $event)" />
+                     (ngModelChange)="setPan($event)" />
+              <!--
+                🔴 THE OLD HELPER SAID "You can add it later — it does not hold
+                up your registration", AND IT IS ABOUT TO BE A LIE. It now holds
+                up the registration on this very step. A sentence that has become
+                untrue is worse than no sentence: it is the one thing on screen
+                somebody will quote back at us.
+
+                What replaces it says why we are asking, which is the only part
+                of the old helper that was ever load-bearing.
+              -->
               <p class="field__helper">
-                If you have it to hand. You can add it later — it does not hold
-                up your registration.
+                The school's PAN, not an individual's. Never shown to teachers.
               </p>
               @if (error('panNumber')) { <p class="field__error">{{ error('panNumber') }}</p> }
             </div>
 
             <div class="field">
-              <label class="field__label" for="establishedYear">
-                Established <span class="field__optional">optional</span>
-              </label>
+              <label class="field__label" for="establishedYear">Established</label>
               <input class="form-control" id="establishedYear" type="number"
+                     inputmode="numeric" min="1800" max="2100"
                      placeholder="e.g. 2011"
+                     [attr.aria-invalid]="error('establishedYear') ? 'true' : null"
                      [ngModel]="value('establishedYear')"
                      (ngModelChange)="set('establishedYear', $event)" />
+              <!--
+                ⚠️ min/max ARE A SPINNER HINT, NOT THE RULE. A browser will not
+                stop somebody typing 1699, and the mobile keyboard it picks is
+                the reason to set them at all. The rule is in
+                `validate('basics')`, where the upper bound is THIS year rather
+                than a number baked into the markup that goes stale every
+                January.
+              -->
               @if (error('establishedYear')) { <p class="field__error">{{ error('establishedYear') }}</p> }
             </div>
           </div>
@@ -448,6 +506,136 @@
               } @else {
                 Choose your state, and the district and town lists fill in from it.
               }
+            </p>
+          }
+
+          <!--
+            ==================================================================
+            🔴 SR-6: THE PIN. UNDER THE ADDRESS FIELDS, AND NOTHING DEPENDS ON
+               IT
+            ==================================================================
+            The client's concern is mistake-proofing, so the pin is a CHECK on
+            an address that has already been given rather than a way of giving
+            one. It sits last on the step for that reason: by the time somebody
+            reaches it, the thing it is confirming is on screen above it.
+
+            🔴 TOUCHING THE MAP IS OPTIONAL AND THE STEP DOES NOT KNOW IT IS
+            HERE. `validate('address')` asks for `addressLine1` and `stateId`,
+            exactly as it did before this feature; `canSubmit()` counts
+            documents and has never heard of coordinates. A school that scrolls
+            past this, or whose map never loads, registers exactly as it would
+            have — which is also the state every school registering today is in,
+            since the pin can only be pre-placed once the address provider is
+            switched on.
+
+            ⚠️ THE ANCHOR IS THE GEOCODED ADDRESS, THE PIN IS WHAT IS SAVED.
+            `latitude`/`longitude` on the draft are the pin and have been
+            carried through resumes since SR-1; the anchor is held in a signal,
+            is never sent anywhere, and exists so the form can measure the gap.
+            See the long note in the .ts.
+
+            ⚠️ THE COMPONENT HANDLES ITS OWN FAILURE. If Leaflet does not load
+            it says so in its own box and emits nothing; there is no condition
+            here that could hide the rest of the step along with it, and the
+            coordinates the address search already resolved are untouched.
+          -->
+          <ui-map-picker
+            label="Check the pin on the map"
+            [heightPx]="320"
+            [latitude]="value('latitude') ?? null"
+            [longitude]="value('longitude') ?? null"
+            [anchorLatitude]="pinAnchorLatitude()"
+            [anchorLongitude]="pinAnchorLongitude()"
+            (picked)="onPinPicked($event)" />
+
+          <p class="field__helper">
+            We put the pin on the address you gave. Drag it only if it is in the
+            wrong place — this is what will put you in a teacher's "jobs near
+            me".
+          </p>
+
+          <!--
+            ==================================================================
+            🔴 THE TWO BOXES ARE THE FALLBACK, AND THE FALLBACK IS THE
+               LOAD-BEARING PART
+            ==================================================================
+            The map is a third-party library over a third-party tile server, and
+            either can fail on a school's connection. <ui-map-picker>'s own hint
+            says "Typing the latitude and longitude yourself works just as
+            well", which is a promise only these two boxes can keep — a map that
+            did not load, on a step with no boxes, would be a sentence pointing
+            at nothing.
+
+            ⚠️ OPTIONAL, AND SAID IN THE WORD THIS PRODUCT USES FOR IT. An empty
+            pair passes `validate('address')`, exactly as it did before SR-6;
+            what is checked is a value somebody typed.
+
+            ⚠️ THEY ARE NOT A SECOND SOURCE OF TRUTH. Both the map and the
+            address lookup write these same two fields, so the boxes always show
+            what is about to be saved — which is also what makes them the
+            read-out of the pin as well as the way to correct it.
+          -->
+          <div class="form-grid">
+            <div class="field">
+              <label class="field__label" for="latitude">
+                Latitude <span class="field__optional">optional</span>
+              </label>
+              <input class="form-control" id="latitude" type="number" step="0.000001"
+                     inputmode="decimal" placeholder="19.076090"
+                     [attr.aria-invalid]="error('latitude') ? 'true' : null"
+                     [ngModel]="value('latitude')"
+                     (ngModelChange)="set('latitude', $event)" />
+              @if (error('latitude')) { <p class="field__error">{{ error('latitude') }}</p> }
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="longitude">
+                Longitude <span class="field__optional">optional</span>
+              </label>
+              <input class="form-control" id="longitude" type="number" step="0.000001"
+                     inputmode="decimal" placeholder="72.877426"
+                     [attr.aria-invalid]="error('longitude') ? 'true' : null"
+                     [ngModel]="value('longitude')"
+                     (ngModelChange)="set('longitude', $event)" />
+              @if (error('longitude')) { <p class="field__error">{{ error('longitude') }}</p> }
+            </div>
+          </div>
+
+          <!--
+            ==================================================================
+            🔴 THE FAR-PIN QUESTION. INLINE, WITH THE REAL NUMBER, AND IT IS A
+               QUESTION
+            ==================================================================
+            Over 3 km from the stated address, the step asks before it will go
+            on. Not a toast: a toast slides away from the map it is about and
+            takes the two answers with it.
+
+            🔴 THE SCHOOL CAN KEEP IT. A campus on a bypass road genuinely sits
+            that far from the postal address, and the admin review that follows
+            is a human looking at both — so this is a chance to notice a
+            mistake, never a limit. "Keep it" is the primary action for exactly
+            that reason.
+
+            ⚠️ NO ANCHOR, NO QUESTION. `pinDistanceKm` is null — not zero —
+            when nothing geocoded the address, which is today's default state,
+            and `pinIsFar` reads that null as "cannot tell". A form that cannot
+            measure must not imply it has.
+
+            ⚠️ `role="alert"` rather than `status`: it appears in response to
+            something the person just did, and `next()` will not move past it.
+          -->
+          @if (needsPinConfirm()) {
+            <p class="reg-note reg-note--stop" role="alert">
+              <strong>Your pin is {{ pinDistanceLabel() }} from your address.</strong>
+              That is fine if your gate really is over there — a lot of schools
+              sit off the road their address names. If it was a slip, put it
+              back.
+              <button type="button" class="btn btn--sm btn--primary" (click)="keepFarPin()">
+                Keep my pin
+              </button>
+              <button type="button" class="btn btn--sm" (click)="movePinToAddress()">
+                Move it back to my address
+              </button>
             </p>
           }
         }

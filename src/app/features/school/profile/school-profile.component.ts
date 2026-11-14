@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import {
   ConfirmDialogService,
   HasUnsavedChanges,
@@ -18,6 +19,13 @@ import {
 
 import { SchoolContextService } from '../../../core/school-context.service';
 import {
+  COMPULSORY_SCHOOL_FIELDS,
+  COMPULSORY_SCHOOL_FIELD_LABELS,
+  CompulsorySchoolField,
+  compulsorySchoolFieldError,
+} from '../../../core/school-required-fields';
+import {
+  SchoolBranch,
   SchoolPhoto,
   SchoolProfile,
   SchoolService,
@@ -73,6 +81,13 @@ interface GalleryItem extends SchoolPhoto {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FormsModule,
+    /*
+      ⚠️ SR-6. For the one link in the pin read-out. A plain <a href> would
+      reload the whole app — a hard navigation out of and back into a
+      federated host — and lose every unsaved section on this page, which is
+      the opposite of what a "here is where to do it" link is for.
+    */
+    RouterLink,
     UiAddressSearchComponent,
     UiBadgeComponent,
     UiButtonComponent,
@@ -105,6 +120,64 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
 
   /** Which sections have been touched since their last successful save. */
   protected readonly dirty = signal<ReadonlySet<SectionKey>>(new Set());
+
+  // =========================================================================
+  // 🔴 SR-6: THE SIX COMPULSORY FIELDS, ON A PAGE FULL OF SCHOOLS THAT PREDATE
+  //    THEM
+  // =========================================================================
+  /*
+    School type, board, affiliation number, registration number, PAN and the
+    established year became required for SR-6. Every school already in the
+    database registered when four of the six were optional, so rows with blanks
+    in them are ORDINARY — not corrupt, not half-saved, and not the fault of
+    whoever opens this page.
+
+    ------------------------------------------------------------------------
+    🔴 THE RULE, IN ONE SENTENCE
+    ------------------------------------------------------------------------
+    One of the six is validated ONLY IF the value on screen differs from the one
+    the page loaded — so a blank left blank saves, and a field somebody touches
+    has to come out valid and non-empty.
+
+    ------------------------------------------------------------------------
+    AND WHY IT IS THAT, RATHER THAN "VALIDATE THE SIX ON EVERY SAVE"
+    ------------------------------------------------------------------------
+    Somebody opened this page to change a phone number. Refusing that save over
+    a PAN nobody asked them for — on a row that has been fine for a year — is
+    the product telling a school its own data is wrong at the exact moment it
+    was trying to help. They do not fix the PAN; they stop editing the profile.
+
+    🔴 SO THE PAGE PROMPTS, IT DOES NOT REFUSE (2.62's "say why, show the
+    road"). A quiet banner at the top of Basic details names what is still
+    missing and why we want it, the boxes are right underneath it, and nothing
+    on the page is disabled and nothing is painted red. "Not yet", never "not
+    allowed".
+
+    ⚠️ ENFORCEMENT STARTS AT THE EDIT, which is the one moment when a message is
+    about something the person just did. Clearing a PAN that WAS filled in
+    counts as an edit, and is refused — removing a fact is not the same as never
+    having given it.
+
+    ⚠️ THE CHECK RUNS ON EVERY SECTION'S SAVE, not just this section's, because
+    `saveSection` sends the WHOLE row whichever button was pressed (see its
+    note). An edited-and-broken PAN would otherwise travel out under the
+    "Save contact details" button and be refused by the server with a message
+    pointing at a card the person was not looking at.
+  */
+  protected readonly basicsErrors = signal<Partial<Record<CompulsorySchoolField, string>>>({});
+
+  /**
+   * The ones that are still blank — for the prompt, not for a refusal.
+   *
+   * ⚠️ BLANK ONLY, NOT "INVALID". A malformed value is reported under its own
+   * box by `basicsErrors`; listing it up here as well would say the same thing
+   * twice in two different voices, and the banner is about what is MISSING.
+   */
+  protected readonly missingCompulsory = computed(() =>
+    COMPULSORY_SCHOOL_FIELDS.filter((field) => this.isBlank(field)).map(
+      (field) => COMPULSORY_SCHOOL_FIELD_LABELS[field],
+    ),
+  );
 
   // ---- masters ------------------------------------------------------------
   protected readonly boards = signal<Lookup[]>([]);
@@ -237,6 +310,15 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
 
     this.selectedFacilities.set(new Set(profile.facilityIds));
     this.dirty.set(new Set());
+
+    /*
+      ⚠️ SR-6. Cleared with the draft, because every message in it was about a
+      value that has just been replaced by the server's. This also runs on the
+      conflict reload, where keeping them would mean complaining about somebody
+      else's row.
+    */
+    this.basicsErrors.set({});
+
     this.loadGallery(profile.photos);
 
     /*
@@ -334,6 +416,20 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
   ): void {
     this.draft.update((draft) => (draft === null ? draft : { ...draft, [field]: value }));
     this.markDirty(section);
+
+    /*
+      SR-6. The message goes as they fix it, rather than waiting for the next
+      save attempt. An error still showing after it has been fixed teaches
+      people to ignore errors — the registration form clears them the same way.
+    */
+    if (this.basicsErrors()[field as CompulsorySchoolField] !== undefined) {
+      this.basicsErrors.update((errors) => {
+        const next = { ...errors };
+        delete next[field as CompulsorySchoolField];
+
+        return next;
+      });
+    }
   }
 
   private markDirty(section: SectionKey): void {
@@ -361,6 +457,143 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
   }
 
   // =========================================================================
+  // SR-6 — THE SIX COMPULSORY FIELDS
+  // =========================================================================
+
+  /**
+   * PAN, stored as the box already LOOKS.
+   *
+   * ⚠️ The input's `text-transform: uppercase` is paint: it changes the glyphs
+   * and not the value, so `abcde1234f` looked like ABCDE1234F and was saved
+   * lower case. Harmless while nothing tested it; now that both this screen and
+   * the server test ^[A-Z]{5}[0-9]{4}[A-Z]$ it is a refusal over a difference
+   * the school was never shown. The registration form does the same thing for
+   * the same reason.
+   */
+  protected setPan(value: string | null): void {
+    this.set('panNumber', value === null ? null : value.toUpperCase(), 'basics');
+  }
+
+  protected compulsoryError(field: CompulsorySchoolField): string | undefined {
+    return this.basicsErrors()[field];
+  }
+
+  private isBlank(field: CompulsorySchoolField): boolean {
+    const value = this.value(field);
+
+    return value === null || value === undefined || String(value).trim().length === 0;
+  }
+
+  /**
+   * Whether what is on screen differs from what the page loaded.
+   *
+   * 🔴 THE BASELINE IS `profile()`, THE LAST THING THE SERVER SAID — not a
+   * snapshot taken in `apply()`. `applyAfterSave` re-reads the row after every
+   * successful save and writes it there, so a value the school has just saved
+   * becomes the new baseline and stops being "edited". That is what keeps the
+   * next unrelated save from being refused over a field that is now stored.
+   *
+   * ⚠️ TRIMMED, BUT NOT CASE-FOLDED. A string that differs only in surrounding
+   * space is not an edit — nobody meant it and nothing changed. A string that
+   * differs in case was typed differently on purpose, and `setPan` makes PAN's
+   * case stable anyway.
+   */
+  private isEdited(field: CompulsorySchoolField): boolean {
+    const saved = this.profile()?.[field] ?? null;
+    const current = this.value(field) ?? null;
+
+    return normaliseForComparison(saved) !== normaliseForComparison(current);
+  }
+
+  /**
+   * 🔴 VALIDATES ONLY WHAT THEY CHANGED. The whole rule is in `isEdited`; this
+   * is the loop around it.
+   *
+   * Returns true when the save may go ahead.
+   *
+   * ⚠️ IT IS NOT THE ENFORCEMENT. `USP_UpdateSchoolProfile` refuses these six
+   * independently and is what actually holds; this exists so the refusal arrives
+   * before the round trip, beside the box, in a sentence written for a person.
+   * If they ever disagree the server wins.
+   */
+  private validateCompulsory(): boolean {
+    const errors: Partial<Record<CompulsorySchoolField, string>> = {};
+
+    for (const field of COMPULSORY_SCHOOL_FIELDS) {
+      if (!this.isEdited(field)) continue;
+
+      const message = compulsorySchoolFieldError(field, this.value(field));
+
+      if (message !== null) {
+        errors[field] = message;
+      }
+    }
+
+    this.basicsErrors.set(errors);
+
+    return Object.keys(errors).length === 0;
+  }
+
+  // =========================================================================
+  // SR-6 — THE MAP PIN, WHICH THIS PAGE CAN READ AND CANNOT WRITE
+  // =========================================================================
+  /**
+   * The head office campus's saved coordinates, or null.
+   *
+   * ----------------------------------------------------------------------------
+   * 🔴 WHY THIS IS A READ-OUT AND NOT TWO INPUT BOXES
+   * ----------------------------------------------------------------------------
+   * `UpdateSchoolProfileBody` carries no latitude or longitude, and neither does
+   * `SchoolProfile` — the COLUMNS are on t_app_schools
+   * (036_alter_address_columns.sql) and approval fills them in from the
+   * registration, but this contract neither reads nor writes them. Exactly the
+   * gap the tehsil and village boxes have on this page, and the same answer:
+   *
+   *   🔴 A BOX WHOSE VALUE IS DROPPED ON SAVE IS WORSE THAN NO BOX. The school
+   *   would nudge its coordinates, press Save, be told "Saved", and nothing
+   *   would have changed. A field the server ignores is a field somebody will
+   *   one day expect it to honour.
+   *
+   * So what is drawn is what can be stated truthfully: the pin on the HEAD
+   * OFFICE CAMPUS, which `SchoolProfile.branches` does carry and which the
+   * campus form can genuinely edit (`SaveBranchBody` has both fields).
+   *
+   * ⚠️ IT IS A DIFFERENT ROW FROM THE SCHOOL'S OWN COORDINATES, and the template
+   * says so rather than implying the two are one number. For a single-campus
+   * school it is nevertheless THE pin a teacher's "jobs near me" will use.
+   *
+   * ⚠️ AND A SINGLE-CAMPUS SCHOOL CANNOT REACH THE CAMPUS FORM AT ALL
+   * (singleCampusGuard, 2.10), so the copy does not send them to a screen that
+   * will bounce them back here. See the note in the template.
+   */
+  protected readonly headOfficePin = computed<{ name: string; coordinates: string } | null>(() => {
+    /*
+      ⚠️ `branches?.` RATHER THAN `branches.`, EVEN THOUGH THE TYPE SAYS IT IS
+      ALWAYS AN ARRAY. This runs inside a computed the template reads on every
+      pass, so a projection that one day omits the list would not produce an
+      empty read-out — it would throw while rendering and take the whole profile
+      page down, over a line of copy about coordinates.
+    */
+    const branch: SchoolBranch | null = this.profile()?.branches?.find((b) => b.isHeadOffice) ?? null;
+
+    if (branch === null || branch.latitude === null || branch.longitude === null) {
+      return null;
+    }
+
+    /*
+      ⚠️ SIX DECIMAL PLACES, FORMATTED HERE RATHER THAN IN THE TEMPLATE. Six is
+      about ten centimetres and is the precision the campus form accepts, so the
+      read-out and the editable boxes agree on what a coordinate looks like.
+      Doing it in the binding would mean `pin.latitude.toFixed(6)` on a
+      `number | null`, which strictTemplates refuses — correctly.
+    */
+    return {
+      name: branch.branchName,
+      coordinates: `${branch.latitude.toFixed(6)}, ${branch.longitude.toFixed(6)}`,
+    };
+  });
+
+  // =========================================================================
   // SAVING
   // =========================================================================
 
@@ -374,6 +607,27 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
   protected saveSection(section: SectionKey): void {
     const draft = this.draft();
     if (draft === null) return;
+
+    /*
+      🔴 SR-6. THE SIX ARE CHECKED ON EVERY SECTION'S SAVE, because every
+      section's save sends the whole row (see this method's own note above).
+      Only the ones the person has CHANGED are judged — the rule and the reason
+      are at the top of this class.
+
+      ⚠️ THE TOAST IS FOR THE CROSS-SECTION CASE ONLY. The messages themselves
+      render under the boxes in Basic details; if that is the card they are
+      looking at, the inline messages are the whole answer and a toast on top of
+      them is noise. If they pressed a different section's button, the inline
+      message is somewhere they are not looking, and something has to say why
+      nothing saved.
+    */
+    if (!this.validateCompulsory()) {
+      if (section !== 'basics') {
+        this.toast.error('Nothing was saved. Check the highlighted boxes in Basic details first.');
+      }
+
+      return;
+    }
 
     this.setState(section, 'saving');
 
@@ -771,6 +1025,16 @@ const SECTION_LABELS: Record<SectionKey, string> = {
   gallery: 'Photos',
   contact: 'Contact and address',
 };
+
+/**
+ * One value, in a form two of them can be compared in.
+ *
+ * ⚠️ SR-6. A trim, and nothing else. See `isEdited` for why case is left alone
+ * and why a surrounding space is not an edit.
+ */
+function normaliseForComparison(value: string | number | null): string | number | null {
+  return typeof value === 'string' ? value.trim() : value;
+}
 
 /**
  * Whether a failed request was the concurrency refusal.

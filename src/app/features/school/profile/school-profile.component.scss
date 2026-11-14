@@ -210,6 +210,43 @@
 }
 
 // -----------------------------------------------------------------------------
+// SR-6 — THE MAP PIN READ-OUT
+//
+// A stated fact with its explanation, not a form field: there is nothing to
+// type here, because the profile's save contract has no coordinates in it (the
+// long note is in the template). So it borrows `.field__label` and
+// `.field__helper` for the type scale and brings its own value line, rather
+// than wearing a `.field` wrapper that would imply an input had failed to draw.
+// -----------------------------------------------------------------------------
+.pin {
+  @include m.flex-column(v.$space-1);
+
+  margin-top: v.$space-4;
+}
+
+.pin__label {
+  font-size: var(--jp-font-size-sm);
+  font-weight: var(--jp-font-weight-medium);
+  color: var(--jp-text);
+}
+
+.pin__value {
+  // ⚠️ Mono, like every other coordinate and id in the product: two numbers
+  // read as a pair when their digits line up, and these are numbers somebody
+  // will compare against Google Maps on another screen.
+  font-family: var(--jp-font-family-mono);
+  font-size: var(--jp-font-size-sm);
+  color: var(--jp-text);
+
+  &--empty {
+    font-family: inherit;
+    color: var(--jp-text-muted);
+  }
+}
+
+.pin .note { margin-top: v.$space-2; }
+
+// -----------------------------------------------------------------------------
 // On a phone the page is a single column of cards, and the footer's buttons go
 // full width — a right-aligned button at 375px is a small target in the corner
 // somebody's thumb reaches last.

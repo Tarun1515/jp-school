@@ -27,6 +27,7 @@ export interface SchoolBranch {
   pincode: string | null;
   latitude: number | null;
   longitude: number | null;
+
   contactPerson: string | null;
   contactEmail: string | null;
   contactMobile: string | null;
@@ -137,6 +138,20 @@ export interface SaveBranchBody {
   pincode: string | null;
   latitude: number | null;
   longitude: number | null;
+
+  /*
+    🔴 THE ANCHOR, AND IT IS NOT THE PIN. Where the stated address geocoded to,
+    sent only by a save that actually resolved an address. The campus-pin review
+    queue is the distance BETWEEN the two, so filling one from the other would
+    make every campus 0 km from itself and leave that queue permanently empty —
+    and an empty queue reads as "nothing to review".
+
+    ⚠️ null on an ordinary edit; the procedure then keeps whatever is stored.
+    Moving a pin does not un-geocode an address.
+  */
+  geocodedLatitude: number | null;
+  geocodedLongitude: number | null;
+
   contactPerson: string | null;
   contactEmail: string | null;
   contactMobile: string | null;

@@ -101,6 +101,40 @@
     border-left-color: var(--jp-danger);
     color: var(--jp-text);
   }
+
+  /*
+    SR-6. The far-pin question's two answers, which sit INSIDE the sentence
+    that asks it.
+
+    ⚠️ BOTH MARGINS ARE NEEDED AND NEITHER IS DECORATION. A `.btn` is
+    inline-flex, so at 375 — where that sentence wraps to four lines and the
+    buttons wrap again under it — the top margin is the only thing keeping them
+    off the last line of text, and the right margin is the only thing between
+    them when they sit side by side at 1440.
+  */
+  .btn {
+    margin-top: v.$space-2;
+    margin-right: v.$space-2;
+  }
+}
+
+/*
+  SR-6. The pin picker on the address step.
+
+  ⚠️ display: block ON THE ELEMENT, because a custom element is inline by
+  default and an inline box ignores the vertical margin that separates it from
+  the PIN code field above. The component sets its own height from [heightPx],
+  so nothing here touches that.
+
+  ⚠️ THE SPACING IS HERE RATHER THAN ON THE COMPONENT'S :host, for the same
+  reason the address search box's is — two callers, two answers. The campus
+  dialog wants it tighter.
+*/
+ui-map-picker {
+  display: block;
+  margin-top: v.$space-4;
+
+  + .field__helper { margin-top: v.$space-2; }
 }
 
 .reg-group {

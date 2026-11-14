@@ -69,7 +69,24 @@
                   <span class="table__code">{{ head.branchCode }}</span>
                 }
               </td>
-              <td class="branch__where">{{ addressLine(head) || '—' }}</td>
+              <!--
+                🔴 SR-6: THE SAVED PIN IS SHOWN, because a coordinate nobody can
+                see is a coordinate nobody can tell is wrong. It sits under the
+                address it is supposed to agree with, which is the only place
+                the two can be compared at a glance.
+
+                ⚠️ "No pin yet" IS NOT A WARNING. A campus without one is
+                perfectly valid — the pin is optional, and nothing today reads
+                it.
+              -->
+              <td class="branch__where">
+                {{ addressLine(head) || '—' }}
+                @if (pinLabel(head); as pin) {
+                  <span class="branch__pin">{{ pin }}</span>
+                } @else {
+                  <span class="branch__pin branch__pin--empty">No pin yet</span>
+                }
+              </td>
               <td>
                 {{ head.contactPerson || '—' }}
                 @if (head.contactMobile) {
@@ -97,7 +114,14 @@
                   <span class="table__code">{{ branch.branchCode }}</span>
                 }
               </td>
-              <td class="branch__where">{{ addressLine(branch) || '—' }}</td>
+              <td class="branch__where">
+                {{ addressLine(branch) || '—' }}
+                @if (pinLabel(branch); as pin) {
+                  <span class="branch__pin">{{ pin }}</span>
+                } @else {
+                  <span class="branch__pin branch__pin--empty">No pin yet</span>
+                }
+              </td>
               <td>
                 {{ branch.contactPerson || '—' }}
                 @if (branch.contactMobile) {
@@ -307,33 +331,121 @@
     }
 
     <!--
-      Latitude and longitude as a plain pair, deliberately.
+      ==========================================================================
+      🔴 SR-6: THE MAP ARRIVED, AND THE TWO NUMBER BOXES STAYED
+      ==========================================================================
+      This note used to say a picker would be "building the interface before the
+      feature that reads it". The client has since asked for one, for a stated
+      reason the plain pair cannot serve: MISTAKE-PROOFING. Two numbers typed
+      into two boxes cannot be checked by the person typing them — a transposed
+      latitude and longitude looks exactly like a correct one — whereas a pin on
+      a map is wrong in a way anybody can see at a glance.
 
-      A map picker is a nicer control and it is not what this phase is for —
-      "jobs near me" is Phase 4 and does not exist yet, so a picker would be
-      building the interface before the feature that reads it. The fields say
-      what they are for, and can be left empty.
+      🔴 SO THE BOXES ARE NOT REPLACED BY IT. They are the fallback, and the
+      fallback is the load-bearing part:
+
+        · the map is a third-party library over a third-party tile server, and
+          either can fail to load on a school's connection;
+        · the pin is OPTIONAL, so nothing may depend on the map rendering;
+        · and somebody who already has the two numbers — out of Google Maps,
+          off a surveyor's note — should not have to hunt for a point on a map
+          to enter them.
+
+      Nothing in `save()` or in the form's validity knows whether the map drew.
+
+      ⚠️ THE PICKER IS INSIDE `@if (editing() !== null)` FOR THE REASON THE
+      ADDRESS SEARCH BOX ABOVE IS: `<ui-modal>` projects this content, so an
+      element written without a condition of its own is created with the PAGE and
+      lives as long as the screen does. A map instance left alive between
+      dialogs would keep the last campus's view, and its tile requests with it.
     -->
     <fieldset class="fieldset">
       <legend class="fieldset__legend">Where it is on the map</legend>
       <p class="field__helper">
         Optional. When teachers can search by distance, this is what puts you in
-        their results. You can copy both numbers out of Google Maps.
+        their results. Drag the pin, or type the numbers if you have them.
       </p>
 
+      @if (editing() !== null) {
+        <ui-map-picker
+          label="The campus pin"
+          [heightPx]="320"
+          [latitude]="formLatitude()"
+          [longitude]="formLongitude()"
+          [anchorLatitude]="pinAnchorLatitude()"
+          [anchorLongitude]="pinAnchorLongitude()"
+          (picked)="onPinPicked($event)" />
+      }
+
+      <!--
+        🔴 THE FAR-PIN QUESTION. INLINE, ON THE FORM, WITH THE REAL NUMBER.
+
+        Over 3 km from the address that was looked up, `save()` stops once and
+        asks. Not a toast: a toast slides away from the map it is about and takes
+        both answers with it.
+
+        🔴 THE SCHOOL CAN KEEP IT, and "Keep my pin" is the primary action for
+        that reason — a campus on a bypass road genuinely sits that far from its
+        postal address. The admin review that follows is a human with both facts
+        in front of them, so this is a chance to notice a slip, never a limit.
+
+        ⚠️ NO ANCHOR, NO QUESTION — and for a campus whose address nobody looked
+        up in this dialog there is no anchor at all, which is every campus until
+        the address provider is switched on. `pinDistanceKm` is null rather than
+        zero in that case, because "cannot tell" and "they coincide" must not
+        share a value.
+      -->
+      @if (needsPinConfirm()) {
+        <p class="pin-confirm" role="alert">
+          <strong>Your pin is {{ pinDistanceLabel() }} from your address.</strong>
+          That is fine if the campus gate really is over there — plenty of
+          schools sit well off the road their address names. If it was a slip,
+          put it back.
+          <button type="button" class="btn btn--sm btn--primary" (click)="keepFarPin()">
+            Keep my pin
+          </button>
+          <button type="button" class="btn btn--sm" (click)="movePinToAddress()">
+            Move it back to my address
+          </button>
+        </p>
+      }
+
       <div class="form-grid">
+        <!--
+          ⚠️ SR-6: VALIDATED NOW, AND STILL OPTIONAL. An empty box is valid; a
+          longitude typed into the latitude box is not, which is the mistake
+          these two make most often and the one `range` catches. See the
+          validators at the foot of the .ts.
+        -->
         <div class="field">
           <label class="field__label" for="latitude">Latitude</label>
           <input class="form-control" id="latitude" type="number" step="0.000001"
-                 placeholder="19.076090" formControlName="latitude" />
+                 placeholder="19.076090" formControlName="latitude"
+                 [attr.aria-invalid]="coordinateFieldError('latitude') ? 'true' : null" />
+          @if (coordinateFieldError('latitude'); as error) {
+            <span class="field__error">{{ error }}</span>
+          }
         </div>
 
         <div class="field">
           <label class="field__label" for="longitude">Longitude</label>
           <input class="form-control" id="longitude" type="number" step="0.000001"
-                 placeholder="72.877426" formControlName="longitude" />
+                 placeholder="72.877426" formControlName="longitude"
+                 [attr.aria-invalid]="coordinateFieldError('longitude') ? 'true' : null" />
+          @if (coordinateFieldError('longitude'); as error) {
+            <span class="field__error">{{ error }}</span>
+          }
         </div>
       </div>
+
+      <!--
+        ⚠️ THE PAIR MESSAGE IS THE GROUP'S, not either box's — half a pin is a
+        fact about the two of them together. See `coordinatePair` in the .ts: one
+        number alone stores a campus on the Greenwich meridian.
+      -->
+      @if (coordinatePairError(); as error) {
+        <span class="field__error">{{ error }}</span>
+      }
     </fieldset>
 
     <fieldset class="fieldset">

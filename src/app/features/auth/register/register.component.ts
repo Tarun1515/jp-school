@@ -48,7 +48,16 @@ export class RegisterComponent {
   protected readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(150)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(150)]],
-    mobile: ['', [Validators.pattern(/^[6-9]\d{9}$/)]],
+    /*
+      🔴 REQUIRED SINCE 11 Nov 2026 (client decision). It was optional, and the
+      label said so — which is the screen the client was looking at when they
+      asked for it to be compulsory.
+
+      ⚠️ THE SERVER REFUSES IT INDEPENDENTLY, in USP_RegisterSchoolUser, above
+      the duplicate checks. This validator is the courtesy that stops a
+      round-trip; it is not the rule.
+    */
+    mobile: ['', [Validators.required, Validators.pattern(/^[6-9]\d{9}$/)]],
     password: ['', [Validators.required, Validators.minLength(8), Validators.maxLength(128)]],
   });
 
@@ -68,7 +77,10 @@ export class RegisterComponent {
   );
 
   protected readonly mobileError = computed(() =>
-    this.errorFor('mobile', { pattern: 'Enter a 10-digit mobile number starting 6 to 9.' }),
+    this.errorFor('mobile', {
+      required: 'We need a mobile number — it is how we reach you about your verification.',
+      pattern: 'Enter a 10-digit mobile number starting 6 to 9.',
+    }),
   );
 
   protected readonly passwordError = computed(() =>
@@ -92,7 +104,14 @@ export class RegisterComponent {
     }
 
     const { email, mobile, password } = this.form.getRawValue();
-    const payload = { email: email.trim().toLowerCase(), mobile: mobile || null, password };
+    /*
+      ⚠️ `mobile.trim()`, NOT `mobile || null`. The `|| null` was right while
+      the field was optional and is now the one line that could still send a
+      school to the server with nothing in it — the form will not submit empty,
+      but a trimmed-to-nothing value is a shape the server should never have to
+      have an opinion about.
+    */
+    const payload = { email: email.trim().toLowerCase(), mobile: mobile.trim(), password };
 
     this.submitting.set(true);
 
