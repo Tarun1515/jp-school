@@ -8,27 +8,36 @@
       <p class="auth__alert" role="alert">{{ message }}</p>
     }
 
-    <div class="field">
-      <label class="field__label" for="name">School name</label>
+<!--
+  🔴 THE "SCHOOL NAME" FIELD WAS REMOVED HERE ON 15 Nov 2026, AND IT WAS
+  REQUIRED, TYPED AND THROWN AWAY.
 
-      <input
-        class="form-control"
-        id="name"
-        type="text"
-        autocomplete="organization"
-        formControlName="name"
-        [attr.aria-invalid]="!!nameError()"
-        [attr.aria-describedby]="nameError() ? 'name-error' : 'name-helper'"
-        aria-required="true"
-        (input)="onFieldInput('name')"
-      />
+  It had `Validators.required`, `aria-required="true"` and a helper line
+  telling the owner to copy it from their registration certificate — and
+  `submit()` sent `{ email, mobile, password }`. `RegisterSchoolRequest`
+  (auth.model.ts), the backend DTO, `UserRepository` and
+  `USP_RegisterSchoolUser` have no name field between them. Every school that
+  ever signed up typed its name into nothing, then typed it again in the
+  registration wizard.
 
-      @if (nameError(); as message) {
-        <p class="field__error" id="name-error">{{ message }}</p>
-      } @else {
-        <p class="field__helper" id="name-helper">As it appears on your registration certificate.</p>
-      }
-    </div>
+  ⚠️ THIS IS G43, ON THE OTHER SIDE OF THE PRODUCT. The teacher signup had the
+  identical bug — "the signup form has required a name since Phase 1 and this
+  interface had no field for it" — and 7B fixed it by passing the name to
+  `USP_ProvisionTeacherProfile(@FullName)`, which inserts the teacher row at
+  signup. A named, fixed bug; the sibling app was never done.
+
+  🔴 WHY IT IS REMOVED RATHER THAN WIRED UP: there is nowhere to put it.
+  `USP_ProvisionSchoolOwner` takes an `@SchoolId` and links an owner to a school
+  that ALREADY EXISTS — at signup no `t_app_schools` row has been created yet.
+  The school is created later, by the registration submission, which captures
+  `@SchoolName` properly with its own validation. The teacher case had a row to
+  write into; this one does not.
+
+  So asking is the error, not the discarding. Signup is now email + mobile +
+  password — which is exactly the client's own compulsory-fields instruction
+  (SR-6: email and mobile), and one less required field before an account
+  exists. The name is still compulsory where it is actually stored.
+-->
 
     <div class="grid grid--2">
       <div class="field">

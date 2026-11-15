@@ -45,8 +45,16 @@ export class RegisterComponent {
   protected readonly submitting = signal(false);
   protected readonly formError = signal<string | null>(null);
 
+  /*
+    🔴 NO `name` CONTROL ANY MORE — see the long note in the template. It was
+    required, and `submit()` never put it on the wire because nothing from
+    `RegisterSchoolRequest` down to `USP_RegisterSchoolUser` has a field for it.
+    Unlike the teacher side's G43 fix there is no row to write it into at signup
+    (`USP_ProvisionSchoolOwner` links an owner to an EXISTING school), so the
+    question is removed rather than wired. The school still names itself, with
+    validation, where the name is actually stored.
+  */
   protected readonly form = this.fb.nonNullable.group({
-    name: ['', [Validators.required, Validators.maxLength(150)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(150)]],
     /*
       🔴 REQUIRED SINCE 11 Nov 2026 (client decision). It was optional, and the
@@ -67,10 +75,6 @@ export class RegisterComponent {
     this.form.statusChanges.subscribe(() => this.formVersion.update((n) => n + 1));
     this.form.valueChanges.subscribe(() => this.formVersion.update((n) => n + 1));
   }
-
-  protected readonly nameError = computed(() =>
-    this.errorFor('name', { required: 'Enter your school name.' }),
-  );
 
   protected readonly emailError = computed(() =>
     this.errorFor('email', { required: 'Enter your email address.' }),

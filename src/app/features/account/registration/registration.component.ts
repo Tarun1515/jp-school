@@ -945,23 +945,26 @@ export class RegistrationComponent {
    * would silently get the wrong one.
    *
    * ----------------------------------------------------------------------------
-   * ⚠️⚠️ TODO (LEAD) — REPOINT THIS CALL WHEN THE MASTER KEY LANDS
+   * ✅ DONE — THIS WAS A "TODO (LEAD) — REPOINT THIS CALL" BLOCK UNTIL 15 Nov 2026
    * ----------------------------------------------------------------------------
-   * `MASTER_KEYS.tehsil` is TEHSIL-BY-DISTRICT today: USP_GetMaster's 'TEHSIL'
-   * branch filters `DistrictId = @ParentId`, so passing a city id matches
-   * nothing and this returns an EMPTY LIST — the control hides and the tehsil
-   * question cannot be answered at all until the backend lands.
+   * It described `MASTER_KEYS.tehsil` as tehsil-BY-DISTRICT, which would return
+   * an empty list for a city id, and listed the two changes needed. **Both
+   * landed:** `MASTER_KEYS.tehsilByCity` exists (jp-shared
+   * `core/models/lookup.model.ts:59`), the server serves it
+   * (`MastersController.cs:205`, `004_documents_masters.sql:397`), and the call
+   * below passes it. Verified 15 Nov 2026: `m_mdm_city.TehsilId` is set on all
+   * 143 Haryana towns, so the control fills for those and hides elsewhere.
    *
-   * It cannot return a WRONG list: district ids are stateId*100 + n (3-4
-   * digits) and city ids are stateId*10000 + n (5-6 digits), so a city id
-   * cannot collide with a district id and the failure mode is silence, not
-   * nonsense.
+   * 🔴 THE TODO WAS LEFT BEHIND AFTER THE WORK WAS DONE, which is worse than no
+   * note: a reader planning the tehsil feature would have believed it was still
+   * unbuilt. Four stale sentences of exactly this kind were corrected across the
+   * docs and apps on 14-15 Nov; this is the fifth.
    *
-   * WHAT HAS TO CHANGE, AND NOTHING ELSE:
-   *   1. jp-shared src/core/models/lookup.model.ts — a new key beside `tehsil`
-   *      for "the tehsils of this city" (the server's whitelist name, e.g.
-   *      'tehsil-by-city'). NOT ADDED HERE: jp-shared is the lead's.
-   *   2. the `MASTER_KEYS.tehsil` argument on the one line below.
+   * ⚠️ AND IT HAD A CONSEQUENCE ELSEWHERE. The same landing made the tehsil
+   * picker on the TEACHER profile's preferred-locations rows start appearing —
+   * and that one has nowhere to save to, so it silently discards the choice.
+   * The guard that kept it harmless was "every tehsil list comes back empty",
+   * and this change is what stopped that being true. See SR_NOTES, D2.
    */
   private loadTehsilsForCity(cityId: number): void {
     // ✅ Repointed by the lead: `tehsil-by-city` resolves through `m_mdm_city.TehsilId`.
