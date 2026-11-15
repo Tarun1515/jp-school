@@ -186,6 +186,7 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
   protected readonly states = signal<Lookup[]>([]);
   protected readonly districts = signal<Lookup[]>([]);
   protected readonly cities = signal<Lookup[]>([]);
+  protected readonly tehsils = signal<Lookup[]>([]);
 
   /**
    * 🔴 Whether the district and city datasets exist at all.
@@ -197,6 +198,10 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
    */
   protected readonly hasDistricts = computed(() => this.districts().length > 0);
   protected readonly hasCities = computed(() => this.cities().length > 0);
+
+  // A state with no tehsils in the master hides the control, exactly as the
+  // district and town boxes already do. Today that means Haryana shows it.
+  protected readonly hasTehsils = computed(() => this.tehsils().length > 0);
 
   /*
     SR-3 (G27). The three geography masters as combobox options.
@@ -210,6 +215,7 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
   protected readonly stateOptions = computed(() => lookupsToOptions(this.states()));
   protected readonly districtOptions = computed(() => lookupsToOptions(this.districts()));
   protected readonly cityOptions = computed(() => lookupsToOptions(this.cities()));
+  protected readonly tehsilOptions = computed(() => lookupsToOptions(this.tehsils()));
 
   /*
     P1 (G27). The two basics masters, now comboboxes like everything else.
@@ -306,6 +312,8 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
       districtId: profile.districtId,
       stateId: profile.stateId,
       pincode: profile.pincode,
+      tehsilId: profile.tehsilId,
+      areaOrVillage: profile.areaOrVillage,
     });
 
     this.selectedFacilities.set(new Set(profile.facilityIds));
@@ -349,6 +357,16 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
     if (profile.districtId) {
       this.loadCities(profile.districtId);
     }
+
+    /*
+      ⚠️ THE TEHSIL LIST TOO, keyed on the TOWN. Same reason the town list is
+      fetched here: the saved id is already in the draft, and a combobox with
+      no options renders blank for a value it holds. A school that opened this
+      page with a stored tehsil and no list would read as though we had lost it.
+    */
+    if (profile.cityId) {
+      this.loadTehsils(profile.cityId);
+    }
   }
 
   /**
@@ -380,6 +398,19 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
     this.set('districtId', address.districtId, 'contact');
     this.set('cityId', address.cityId, 'contact');
 
+    /*
+      🔴 THE TEHSIL AND THE AREA ARE KEPT NOW — 15 Nov 2026.
+
+      `ResolvedAddress` has carried both since SR-1 and this handler dropped
+      them, because `USP_UpdateSchoolProfile` had no parameters to send them to.
+      The comment above this method still describes that trade: "they are
+      dropped rather than set on a draft `save()` cannot send. A field the
+      server ignores is a field somebody will one day expect it to honour."
+
+      The server takes them now, so dropping them would be the thing that lies.
+    */
+    this.set('tehsilId', address.tehsilId, 'contact');
+
     if (address.pincode) {
       this.set('pincode', address.pincode, 'contact');
     }
@@ -389,8 +420,13 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
       this.set('addressLine1', address.addressLine1, 'contact');
     }
 
+    if (address.areaOrVillage && !this.value('areaOrVillage')) {
+      this.set('areaOrVillage', address.areaOrVillage, 'contact');
+    }
+
     this.districts.set([]);
     this.cities.set([]);
+    this.tehsils.set([]);
 
     if (address.stateId) {
       this.loadDistricts(address.stateId);
@@ -398,6 +434,10 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
 
     if (address.districtId) {
       this.loadCities(address.districtId);
+    }
+
+    if (address.cityId) {
+      this.loadTehsils(address.cityId);
     }
   }
 
@@ -965,8 +1005,10 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
     this.set('stateId', stateId, 'contact');
     this.set('districtId', null, 'contact');
     this.set('cityId', null, 'contact');
+    this.set('tehsilId', null, 'contact');
     this.districts.set([]);
     this.cities.set([]);
+    this.tehsils.set([]);
 
     if (stateId) this.loadDistricts(stateId);
   }
@@ -981,11 +1023,55 @@ export class SchoolProfileComponent implements HasUnsavedChanges, OnDestroy {
   protected onDistrictChange(districtId: number | null): void {
     this.set('districtId', districtId, 'contact');
     this.set('cityId', null, 'contact');
+    this.set('tehsilId', null, 'contact');
     this.cities.set([]);
+    this.tehsils.set([]);
 
     if (districtId) {
       this.loadCities(districtId);
     }
+  }
+
+  /**
+   * CASCADE RULE: the town is the tehsil's parent.
+   *
+   * 🔴 THIS LEVEL IS NEW HERE — 15 Nov 2026. `t_app_schools.TehsilId` and
+   * `AreaOrVillage` have existed since 036 and `USP_UpdateSchoolProfile` had no
+   * parameters for them, so this page could not store either. The comment that
+   * used to sit where these controls now are said exactly that, and said the
+   * box was deliberately absent because of it:
+   *
+   *     "a school could correct its tehsil, press Save, be told 'Saved', and
+   *      nothing would have" been written.
+   *
+   * That was the right call. The procedure takes both now, and the controls
+   * follow the storage rather than preceding it.
+   */
+  protected onCityChange(cityId: number | null): void {
+    this.set('cityId', cityId, 'contact');
+    this.set('tehsilId', null, 'contact');
+    this.tehsils.set([]);
+
+    if (cityId) {
+      this.loadTehsils(cityId);
+    }
+  }
+
+  protected onTehsilChange(tehsilId: number | null): void {
+    this.set('tehsilId', tehsilId, 'contact');
+  }
+
+  /**
+   * ⚠️ BY TOWN, NOT BY DISTRICT. `m_mdm_city.TehsilId` is the authoritative
+   * link, and `MASTER_KEYS.tehsilByCity` is the key that reads it — the
+   * district-parented `TEHSIL` branch answers a different question and a plain
+   * int id cannot tell the two apart.
+   */
+  private loadTehsils(cityId: number): void {
+    this.masters.getByParent(MASTER_KEYS.tehsilByCity, cityId).subscribe({
+      next: (items) => this.tehsils.set(items),
+      error: () => this.tehsils.set([]),
+    });
   }
 
   /**

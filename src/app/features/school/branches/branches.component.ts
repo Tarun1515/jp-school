@@ -97,10 +97,12 @@ export class BranchesComponent {
   protected readonly states = signal<Lookup[]>([]);
   protected readonly districts = signal<Lookup[]>([]);
   protected readonly cities = signal<Lookup[]>([]);
+  protected readonly tehsils = signal<Lookup[]>([]);
 
   /** ⚠️ Empty today (2.47). Same degrade as the profile and registration forms. */
   protected readonly hasDistricts = computed(() => this.districts().length > 0);
   protected readonly hasCities = computed(() => this.cities().length > 0);
+  protected readonly hasTehsils = computed(() => this.tehsils().length > 0);
 
   /*
     SR-3 (G27). The three geography masters as combobox options.
@@ -113,6 +115,7 @@ export class BranchesComponent {
   protected readonly stateOptions = computed(() => lookupsToOptions(this.states()));
   protected readonly districtOptions = computed(() => lookupsToOptions(this.districts()));
   protected readonly cityOptions = computed(() => lookupsToOptions(this.cities()));
+  protected readonly tehsilOptions = computed(() => lookupsToOptions(this.tehsils()));
 
   protected readonly headOffice = computed(() => this.branches().find((b) => b.isHeadOffice) ?? null);
   protected readonly others = computed(() => this.branches().filter((b) => !b.isHeadOffice));
@@ -256,6 +259,14 @@ export class BranchesComponent {
     stateId: [null as number | null],
     districtId: [null as number | null],
     cityId: [null as number | null],
+
+    /*
+      Added 15 Nov 2026, once USP_SaveBranch gained @TehsilId and @AreaOrVillage.
+      Both columns have been on t_app_school_branches since 036 and no procedure
+      wrote either, which is why this form deliberately had no boxes for them.
+    */
+    tehsilId: [null as number | null],
+    areaOrVillage: ['', [Validators.maxLength(200)]],
     pincode: ['', [Validators.pattern(/^\d{6}$/)]],
 
     /*
@@ -310,6 +321,17 @@ export class BranchesComponent {
     this.form.controls.districtId.valueChanges
       .pipe(takeUntilDestroyed())
       .subscribe((districtId) => this.onDistrictChange(districtId));
+
+    /*
+      ⚠️ THE TOWN NEEDS ONE TOO NOW, because a tehsil hangs off it (15 Nov
+      2026). Subscribed rather than bound with (ngModelChange) so it follows the
+      same path the other two levels do — and so `patchValue(..., { emitEvent:
+      false })` in `openEdit` and `onAddressResolved` can restore a saved town
+      WITHOUT clearing the tehsil they are restoring beside it.
+    */
+    this.form.controls.cityId.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((cityId) => this.onCityChange(cityId));
 
     /*
       🔴 SR-6. THE MIRROR FOR HAND-TYPED COORDINATES.
@@ -402,6 +424,8 @@ export class BranchesComponent {
       districtId: branch.districtId,
       cityId: branch.cityId,
       pincode: branch.pincode ?? '',
+      tehsilId: branch.tehsilId,
+      areaOrVillage: branch.areaOrVillage ?? '',
       latitude: branch.latitude,
       longitude: branch.longitude,
       contactPerson: branch.contactPerson ?? '',
@@ -444,6 +468,10 @@ export class BranchesComponent {
     */
     if (branch.stateId) this.loadDistricts(branch.stateId);
     if (branch.districtId) this.loadCities(branch.districtId);
+
+    // The tehsil list is keyed on the TOWN, so it is fetched from the saved city
+    // rather than hanging off the district — same rule as the other two levels.
+    if (branch.cityId) this.loadTehsils(branch.cityId);
 
     /*
       🔴 SR-6. THE SAVED PIN GOES INTO THE MIRROR; THE ANCHOR STAYS NULL.
@@ -519,10 +547,42 @@ export class BranchesComponent {
   }
 
   private onDistrictChange(districtId: number | null): void {
-    this.form.patchValue({ cityId: null }, { emitEvent: false });
+    this.form.patchValue({ cityId: null, tehsilId: null }, { emitEvent: false });
     this.cities.set([]);
+    this.tehsils.set([]);
 
     if (districtId) this.loadCities(districtId);
+  }
+
+  /**
+   * CASCADE RULE: the town is the tehsil's parent.
+   *
+   * 🔴 THIS LEVEL IS NEW ON THE CAMPUS FORM — 15 Nov 2026, once
+   * `USP_SaveBranch` gained @TehsilId and @AreaOrVillage. Until then the
+   * template's own note by the Town box said not to add it, and gave the
+   * reason: a school "could set its campus tehsil, be told 'Campus updated',
+   * and nothing would have" been stored.
+   */
+  protected onCityChange(cityId: number | null): void {
+    this.form.patchValue({ tehsilId: null }, { emitEvent: false });
+    this.tehsils.set([]);
+
+    if (cityId) this.loadTehsils(cityId);
+  }
+
+  /**
+   * ⚠️ FETCHES, AND NOTHING ELSE — the same split the two above have, for the
+   * same reason: `openEdit` has to fill this list without clearing the saved
+   * tehsil it is filling the list in order to show.
+   *
+   * ⚠️ BY TOWN. `m_mdm_city.TehsilId` is the authoritative link and
+   * `MASTER_KEYS.tehsilByCity` is the key that reads it.
+   */
+  private loadTehsils(cityId: number): void {
+    this.masters.getByParent(MASTER_KEYS.tehsilByCity, cityId).subscribe({
+      next: (items) => this.tehsils.set(items),
+      error: () => this.tehsils.set([]),
+    });
   }
 
   /**
@@ -571,17 +631,19 @@ export class BranchesComponent {
    * ----------------------------------------------------------------------------
    * ⚠️ THE CAMPUS FORM CANNOT STORE EVERYTHING THE RESOLVE RETURNS
    * ----------------------------------------------------------------------------
-   * `address.tehsilId`, `address.areaOrVillage` and `address.googlePlaceId` are
-   * DROPPED here, because `SaveBranchBody` and USP_SaveBranch carry no such
-   * fields — the same gap the template note by the Town box records. The COLUMNS
-   * exist on t_app_school_branches (036_alter_address_columns.sql adds TehsilId,
-   * AreaOrVillage and GooglePlaceId); only the contract is missing.
+   * ✅ `address.tehsilId` AND `address.areaOrVillage` ARE KEPT NOW — 15 Nov
+   * 2026. `SaveBranchBody` and USP_SaveBranch carry both, so dropping them
+   * would be the thing that loses data rather than the thing that protects it.
    *
-   * 🔴 WRITING THEM INTO THE FORM ANYWAY WOULD BE WORSE THAN DROPPING THEM:
-   * `save()` cannot send what the body has no field for, so the school would be
-   * told "Campus updated" about facts that were never stored. An unmatched level
-   * the search box reports is still reported honestly — the control's note names
-   * what our masters did not contain, whichever form it is sitting on.
+   * ⚠️ `address.googlePlaceId` IS STILL DROPPED, and that one is unchanged: the
+   * COLUMN exists on t_app_school_branches (036) and the contract has no field
+   * for it. The reasoning that used to cover all three still covers this one —
+   * writing it into the form would mean being told "Campus updated" about a
+   * fact that was never stored.
+   *
+   * 🔴 THE RULE THAT DECIDES BOTH: a value is written into this form only when
+   * `save()` can send it. That is why the tehsil arrived with its procedure
+   * parameter and not before, and why the place id waits for its own.
    *
    * ⚠️ `addressLine1` IS FILLED ONLY WHEN IT IS EMPTY. The provider's street
    * line is a guess; what somebody typed about their own campus is not. And the
@@ -602,6 +664,14 @@ export class BranchesComponent {
       // null from the provider becomes '' rather than being written as null.
       addressLine1: typedLine1 ? typedLine1 : address.addressLine1 ?? '',
       pincode: address.pincode ?? this.form.controls.pincode.value,
+
+      // Kept now that USP_SaveBranch stores them. The area is only filled when
+      // empty, for the same reason addressLine1 is: what somebody typed about
+      // their own campus beats a provider's guess.
+      tehsilId: address.tehsilId,
+      areaOrVillage: this.form.controls.areaOrVillage.value.trim()
+        ? this.form.controls.areaOrVillage.value
+        : address.areaOrVillage ?? '',
     }, { emitEvent: false });
 
     /*
@@ -629,6 +699,11 @@ export class BranchesComponent {
 
     if (address.stateId) this.loadDistricts(address.stateId);
     if (address.districtId) this.loadCities(address.districtId);
+
+    // Keyed on the town, so it comes from the resolved city id — not from the
+    // district, and not from the cascade handler, which would clear the tehsil
+    // this resolve just produced.
+    if (address.cityId) this.loadTehsils(address.cityId);
   }
 
   /**
@@ -761,6 +836,8 @@ export class BranchesComponent {
       districtId: value.districtId,
       cityId: value.cityId,
       pincode: value.pincode.trim() || null,
+      tehsilId: value.tehsilId,
+      areaOrVillage: value.areaOrVillage.trim() || null,
 
       /*
         ⚠️ SR-6: THROUGH `numberOrNull`, SO AN EMPTIED BOX SENDS null AND NOT ''.

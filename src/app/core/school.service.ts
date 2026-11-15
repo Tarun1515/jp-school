@@ -23,6 +23,20 @@ export interface SchoolBranch {
   addressLine2: string | null;
   cityId: number | null;
   districtId: number | null;
+
+  /*
+    🔴 ADDED 15 Nov 2026. Both columns have been on t_app_schools and
+    t_app_school_branches since 036, and until today NO procedure in jp_app
+    wrote either — so a school could state its tehsil while registering and
+    never correct it afterwards.
+
+    ⚠️ The campus and profile forms deliberately had no box for them, and said
+    so in their own comments: adding one over a procedure that could not store
+    it would have meant pressing Save, being told "Saved", and losing the
+    value. That restraint was right. This is the other half of it.
+  */
+  tehsilId: number | null;
+  areaOrVillage: string | null;
   stateId: number | null;
   pincode: string | null;
   latitude: number | null;
@@ -72,6 +86,20 @@ export interface SchoolProfile {
   addressLine2: string | null;
   cityId: number | null;
   districtId: number | null;
+
+  /*
+    🔴 ADDED 15 Nov 2026. Both columns have been on t_app_schools and
+    t_app_school_branches since 036, and until today NO procedure in jp_app
+    wrote either — so a school could state its tehsil while registering and
+    never correct it afterwards.
+
+    ⚠️ The campus and profile forms deliberately had no box for them, and said
+    so in their own comments: adding one over a procedure that could not store
+    it would have meant pressing Save, being told "Saved", and losing the
+    value. That restraint was right. This is the other half of it.
+  */
+  tehsilId: number | null;
+  areaOrVillage: string | null;
   stateId: number | null;
   pincode: string | null;
 
@@ -120,6 +148,20 @@ export interface UpdateSchoolProfileBody {
   addressLine2: string | null;
   cityId: number | null;
   districtId: number | null;
+
+  /*
+    🔴 ADDED 15 Nov 2026. Both columns have been on t_app_schools and
+    t_app_school_branches since 036, and until today NO procedure in jp_app
+    wrote either — so a school could state its tehsil while registering and
+    never correct it afterwards.
+
+    ⚠️ The campus and profile forms deliberately had no box for them, and said
+    so in their own comments: adding one over a procedure that could not store
+    it would have meant pressing Save, being told "Saved", and losing the
+    value. That restraint was right. This is the other half of it.
+  */
+  tehsilId: number | null;
+  areaOrVillage: string | null;
   stateId: number | null;
   pincode: string | null;
 }
@@ -134,6 +176,20 @@ export interface SaveBranchBody {
   addressLine2: string | null;
   cityId: number | null;
   districtId: number | null;
+
+  /*
+    🔴 ADDED 15 Nov 2026. Both columns have been on t_app_schools and
+    t_app_school_branches since 036, and until today NO procedure in jp_app
+    wrote either — so a school could state its tehsil while registering and
+    never correct it afterwards.
+
+    ⚠️ The campus and profile forms deliberately had no box for them, and said
+    so in their own comments: adding one over a procedure that could not store
+    it would have meant pressing Save, being told "Saved", and losing the
+    value. That restraint was right. This is the other half of it.
+  */
+  tehsilId: number | null;
+  areaOrVillage: string | null;
   stateId: number | null;
   pincode: string | null;
   latitude: number | null;

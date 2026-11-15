@@ -283,19 +283,27 @@
       }
 
       <!--
-        🔴 P1: STATE -> DISTRICT -> TOWN, AND THE CAMPUS FORM STOPS AT THE TOWN.
+        🔴 P1: STATE -> DISTRICT -> TOWN -> TEHSIL -> AREA. THE SAME CHAIN THE
+        REGISTRATION FORM ASKS, AND THE CAMPUS FORM NOW ASKS IT TOO.
 
-        The registration form asks Tehsil/Sub-tehsil and a free-text
-        Village/area after this; a campus cannot, because `SaveBranchBody` and
-        USP_SaveBranch carry no TehsilId or AreaOrVillage. The COLUMNS are on
-        t_app_school_branches already (036_alter_address_columns.sql) — only the
-        contract is missing.
+        ✅ COMPLETED 15 Nov 2026. The note that stood here said not to add these
+        two controls, and gave the right reason:
 
-        ⚠️ WHICH IS WHY THERE IS NO TEHSIL BOX HERE YET. Adding one in this
-        template would collect a value `save()` cannot send: the school would
-        set its campus tehsil, be told "Campus updated", and nothing would have
-        changed. That is worse than the question not being asked. Exposing the
-        two fields is a change in jp-backend and school.service.ts.
+            "Adding one in this template would collect a value `save()` cannot
+             send: the school would set its campus tehsil, be told 'Campus
+             updated', and nothing would have changed."
+
+        It also named the prerequisite — "a change in jp-backend and
+        school.service.ts" — and that is the order it was done in:
+        `USP_SaveBranch` takes @TehsilId and @AreaOrVillage, the branch reads
+        return them, `SaveBranchBody` and `SchoolBranch` carry them, and only
+        then did these boxes appear.
+
+        ⚠️ WORTH KEEPING, because the teacher side is the counter-example. A
+        tehsil picker went onto the teacher profile before the table type
+        carrying its save had a column for it, and for days it accepted choices
+        and discarded them behind a "Saved" message. Nobody drew this box, so
+        nothing here ever lied.
 
         ⚠️ "Town or city", the words the other two address forms use. The list
         is mostly towns — one headquarters town per tehsil — and a campus in one
@@ -307,6 +315,29 @@
           [options]="cityOptions()"
           formControlName="cityId" />
       }
+
+      @if (hasTehsils()) {
+        <ui-combobox
+          label="Tehsil / Sub-tehsil"
+          placeholderOption="Choose…"
+          [options]="tehsilOptions()"
+          formControlName="tehsilId" />
+      }
+
+      <!--
+        ⚠️ TYPED, NOT CHOSEN — the last level and the only free-text one. Below
+        a tehsil there is no list worth having, and a village in no master is
+        still where a campus is.
+      -->
+      <div class="field">
+        <label class="field__label" for="branchArea">Area or village</label>
+        <input class="form-control" id="branchArea" type="text"
+               maxlength="200" placeholder="Barwala, Model Town …"
+               formControlName="areaOrVillage" />
+        <p class="field__helper">
+          Optional. The locality or village, if it is not in the lists above.
+        </p>
+      </div>
 
       <div class="field">
         <label class="field__label" for="branchPincode">PIN code</label>

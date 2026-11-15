@@ -575,21 +575,29 @@
           }
 
           <!--
-            🔴 P1: STATE -> DISTRICT -> TOWN, AND IT STOPS AT THE TOWN HERE.
+            🔴 P1: STATE -> DISTRICT -> TOWN -> TEHSIL -> AREA. THE FULL CHAIN,
+            THE SAME ONE THE REGISTRATION FORM ASKS.
 
-            The registration form asks two more questions after this one —
-            Tehsil/Sub-tehsil and a free-text Village/area — and this page
-            cannot, because `UpdateSchoolProfileBody` and USP_UpdateSchoolProfile
-            carry no TehsilId or AreaOrVillage. The COLUMNS exist on
-            t_app_schools (036_alter_address_columns.sql) and approval fills them
-            in from the registration, so the facts are there; the profile
-            contract simply does not read or write them.
+            ✅ COMPLETED 15 Nov 2026. The note that stood here described exactly
+            why the last two were missing, and it was right at the time:
 
-            ⚠️ SO DO NOT ADD THE TWO CONTROLS HERE AS A TEMPLATE CHANGE. A box
-            whose value is dropped on save is worse than no box: the school would
-            correct its tehsil, press Save, be told "Saved", and nothing would
-            have changed. Exposing them is a contract change in jp-backend and in
-            school.service.ts, both outside this file.
+                "`UpdateSchoolProfileBody` and USP_UpdateSchoolProfile carry no
+                 TehsilId or AreaOrVillage. The COLUMNS exist on t_app_schools
+                 ... SO DO NOT ADD THE TWO CONTROLS HERE AS A TEMPLATE CHANGE.
+                 A box whose value is dropped on save is worse than no box."
+
+            It then named what had to change first — "a contract change in
+            jp-backend and in school.service.ts, both outside this file" — and
+            that is what was done: `USP_UpdateSchoolProfile` takes @TehsilId and
+            @AreaOrVillage, the read returns them, `UpdateSchoolProfileBody` and
+            `SchoolProfile` carry them. The controls follow the storage.
+
+            ⚠️ WORTH KEEPING: this restraint is the reason the school side never
+            had the bug the teacher side did. A tehsil picker was added to the
+            teacher profile before its column could be written, and it spent
+            days accepting choices it threw away. Here nobody drew the box, so
+            nothing lied — only the gap stayed invisible, which is the cheaper
+            of the two failures.
 
             ⚠️ "Town or city", the same words the registration form uses. Towns
             are most of what this list holds — one headquarters town per tehsil
@@ -601,8 +609,35 @@
               label="Town or city"
               [options]="cityOptions()"
               [ngModel]="value('cityId')"
-              (ngModelChange)="set('cityId', $event, 'contact')" />
+              (ngModelChange)="onCityChange($event)" />
           }
+
+          @if (hasTehsils()) {
+            <ui-combobox
+              label="Tehsil / Sub-tehsil"
+              placeholderOption="Choose…"
+              [options]="tehsilOptions()"
+              [ngModel]="value('tehsilId')"
+              (ngModelChange)="onTehsilChange($event)" />
+          }
+
+          <!--
+            ⚠️ TYPED, NOT CHOSEN — the last level, and the only free-text one.
+            Below a tehsil there is no list worth having, and a village in no
+            master is still where a school is. Same decision as the
+            registration form's.
+          -->
+          <div class="field">
+            <label class="field__label" for="areaOrVillage">Area or village</label>
+            <input class="form-control" id="areaOrVillage" type="text"
+                   maxlength="200"
+                   placeholder="Barwala, Model Town …"
+                   [ngModel]="value('areaOrVillage')"
+                   (ngModelChange)="set('areaOrVillage', $event, 'contact')" />
+            <p class="field__helper">
+              Optional. The locality or village, if it is not in the lists above.
+            </p>
+          </div>
 
           <div class="field">
             <label class="field__label" for="pincode">PIN code</label>
@@ -633,8 +668,14 @@
           longitude. The COLUMNS are on t_app_schools
           (036_alter_address_columns.sql) and approval fills them in from the
           registration — the facts are there; this contract neither reads nor
-          writes them. Exactly the gap the tehsil and village boxes have on this
-          page, a few lines above.
+          writes them.
+
+          ⚠️ THIS USED TO SAY "exactly the gap the tehsil and village boxes have
+          on this page, a few lines above". Those two were closed on 15 Nov 2026
+          — the procedure takes them and the controls are there now — so the
+          comparison would send a reader looking for a gap that is no longer
+          there. The coordinates are still in that state, and they are now the
+          only field on this page that is.
 
           🔴 SO THERE ARE NO NUMBER BOXES HERE, AND THAT IS THE POINT. A box
           whose value `saveSection()` cannot send would let a school nudge its
